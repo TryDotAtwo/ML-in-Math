@@ -1,0 +1,12 @@
+# Pancake problem project
+numpy>=1.20
+pandas>=1.2
+pytest>=6.0
+
+# Optional: автосабмит на Kaggle (CLI или HTTP-обход при ошибке kagglesdk)
+# kaggle>=1.5.0
+# requests  # для HTTP-отправки, если CLI не работает
+
+# Optional: ML and Colab
+# torch>=1.9
+# cayleypy @ git+https://github.com/cayleypy/cayleypy.git@e1518b6

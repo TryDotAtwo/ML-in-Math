@@ -1,0 +1,19 @@
+# Credentials (не коммитить)
+kaggle.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+*.egg
+
+# Debug / IDE
+debug-*.log
+.venv/
+venv/
+.env
+
+# Data/output (по желанию — раскомментируй, чтобы не коммитить)
+# submission.csv
+# pancake_runs/
