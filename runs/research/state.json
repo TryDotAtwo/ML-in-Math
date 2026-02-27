@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "methods": {
+    "baseline": {
+      "status": "done",
+      "started_at": "2026-02-27 13:51:30",
+      "submission_path": "runs\\research\\submissions\\baseline.csv",
+      "metrics_path": "runs\\research\\metrics\\baseline.json",
+      "finished_at": "2026-02-27 13:51:31",
+      "score": 158680,
+      "gain_vs_baseline": 0,
+      "wrong_solutions": 0
+    },
+    "beam_64x64": {
+      "status": "running",
+      "started_at": "2026-02-27 13:51:31",
+      "submission_path": "runs\\research\\submissions\\beam_64x64.csv",
+      "metrics_path": "runs\\research\\metrics\\beam_64x64.json"
+    }
+  },
+  "updated_at": "2026-02-27 13:51:31"
+}

@@ -30,12 +30,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+import psutil
+import pandas as pd
+
 _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 os.chdir(_ROOT)
-
-import pandas as pd
 
 from src.core import (
     apply_moves,
@@ -56,6 +57,27 @@ from src.notebook_search import get_solver
 from src.submission import check_steps, evaluate_submission_vs_baseline
 
 DEFAULT_TEST = "baseline/sample_submission.csv"
+
+# Жёсткий лимит памяти: 20 ГБ
+MEMORY_LIMIT_BYTES = 20 * 1024**3
+# Как часто гарантированно логировать прогресс (даже если мало строк решено), сек
+PROGRESS_TIME_LIMIT_SEC = 5.0
+
+try:
+    _PROC = psutil.Process(os.getpid())
+except Exception:
+    _PROC = None
+
+
+def _get_rss_bytes() -> Optional[int]:
+    """Текущее потребление ОЗУ процессом (rss) или None, если недоступно."""
+    if _PROC is None:
+        return None
+    try:
+        return _PROC.memory_info().rss
+    except Exception:
+        return None
+
 
 # ─────────────────── helpers ───────────────────
 
@@ -137,8 +159,14 @@ def _make_custom_h(name: str) -> Callable:
     return make_h(0.0)
 
 
-def _solve_one(perm: List[int], cfg: MethodCfg) -> List[int]:
-    p = cfg.params
+def _solve_one(perm: List[int], cfg: MethodCfg, overrides: Optional[dict] = None) -> List[int]:
+    """Решить одну perm указанным методом.
+    overrides (при наличии) переопределяют параметры cfg.params во время выполнения
+    (например, уменьшенный beam_width/depth при превышении лимита памяти).
+    """
+    p = dict(cfg.params)
+    if overrides:
+        p.update(overrides)
     if cfg.kind == "baseline":
         return pancake_sort_moves(perm)
 
@@ -213,7 +241,7 @@ def _run_method(
     cfg: MethodCfg,
     submission_path: Path,
     log_every: int,
-) -> None:
+) -> dict:
     existing_ids: set = set()
     wrote_header = False
     if submission_path.exists():
@@ -229,16 +257,43 @@ def _run_method(
     _log(f"  [{cfg.name}] задач: {total}, уже решено: {len(existing_ids)}")
     batch: List[dict] = []
     t0 = time.time()
+    last_log_ts = t0
     new_solved = 0
+    max_rss = 0
+    high_mem_events = 0
+    row_times: List[float] = []
+
+    # Для beam-подобных методов позволяем динамически уменьшать beam_width/depth
+    runtime_overrides: dict = {}
 
     for i, row in enumerate(test_df.itertuples(index=False), start=1):
         rid = int(row.id)
         if rid in existing_ids:
             continue
+        row_t0 = time.time()
         perm = parse_permutation(row.permutation)
-        moves = _solve_one(perm, cfg)
+        moves = _solve_one(perm, cfg, overrides=runtime_overrides or None)
         batch.append({"id": rid, "solution": moves_to_str(moves)})
         new_solved += 1
+        row_times.append(time.time() - row_t0)
+
+        # Обновляем максимум по памяти и при необходимости ужимаем beam
+        rss = _get_rss_bytes()
+        if rss is not None:
+            if rss > max_rss:
+                max_rss = rss
+            if rss > MEMORY_LIMIT_BYTES and cfg.kind in ("beam", "beam_custom_h", "unified"):
+                high_mem_events += 1
+                old_bw = int(runtime_overrides.get("beam_width", cfg.params.get("beam_width", 64)))
+                old_depth = int(runtime_overrides.get("depth", cfg.params.get("depth", 64)))
+                new_bw = max(16, old_bw // 2)
+                new_depth = max(24, old_depth // 2)
+                runtime_overrides["beam_width"] = new_bw
+                runtime_overrides["depth"] = new_depth
+                _log(
+                    f"  [{cfg.name}] HIGH MEM: {rss / 1024**3:.1f} GB > 20 GB → "
+                    f"beam_width {old_bw}->{new_bw}, depth {old_depth}->{new_depth}"
+                )
 
         if len(batch) >= 100:
             pd.DataFrame(batch).to_csv(
@@ -248,10 +303,17 @@ def _run_method(
             batch.clear()
             gc.collect()
 
-        if i % max(1, log_every) == 0:
-            elapsed = time.time() - t0
+        now = time.time()
+        need_log_by_count = (i % max(1, log_every) == 0)
+        need_log_by_time = (now - last_log_ts >= PROGRESS_TIME_LIMIT_SEC)
+        if need_log_by_count or need_log_by_time:
+            elapsed = now - t0
             speed = new_solved / max(elapsed, 0.001)
-            _log(f"  [{cfg.name}] {i}/{total} | new={new_solved} | {speed:.1f} row/s")
+            mem_str = ""
+            if rss is not None:
+                mem_str = f" | mem={rss / 1024**3:.1f} GB max={max_rss / 1024**3:.1f} GB"
+            _log(f"  [{cfg.name}] {i}/{total} | new={new_solved} | {speed:.1f} row/s{mem_str}")
+            last_log_ts = now
 
     if batch:
         pd.DataFrame(batch).to_csv(
@@ -263,6 +325,19 @@ def _run_method(
     final_df = final_df.drop_duplicates(subset=["id"], keep="last").sort_values("id")
     final_df.to_csv(submission_path, index=False)
     _log(f"  [{cfg.name}] готово: {len(final_df)} строк → {submission_path.name}")
+
+    # Сводные метрики по времени и памяти
+    rows_processed = len(row_times)
+    mean_row_time = sum(row_times) / rows_processed if rows_processed else 0.0
+    max_row_time = max(row_times) if rows_processed else 0.0
+    return {
+        "max_rss_bytes": int(max_rss),
+        "max_rss_gb": (max_rss / 1024**3) if max_rss else 0.0,
+        "high_memory_events": int(high_mem_events),
+        "mean_row_time_sec": float(mean_row_time),
+        "max_row_time_sec": float(max_row_time),
+        "rows_processed": int(rows_processed),
+    }
 
 
 def _evaluate_method(test_df: pd.DataFrame, submission_path: Path) -> dict:
@@ -409,19 +484,26 @@ def main() -> None:
 
         try:
             _log(f"[{cfg.name}] ЗАПУСК...")
-            _run_method(test_df, cfg, sub_path, log_every=args.log_every)
+            run_info = _run_method(test_df, cfg, sub_path, log_every=args.log_every)
 
             _log(f"  [{cfg.name}] оценка vs baseline...")
             stats = _evaluate_method(test_df, sub_path)
+            stats.update(run_info)
             met_path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
 
             score = int(stats.get("score_from_submission", 0))
             gain = int(stats.get("total_gain", 0))
             wrong = int(stats.get("wrong_solutions", 0))
+            max_rss_gb = float(stats.get("max_rss_gb", 0.0))
+            high_mem_events = int(stats.get("high_memory_events", 0))
 
             state["methods"][cfg.name].update({
                 "status": "done", "finished_at": _ts(),
-                "score": score, "gain_vs_baseline": gain, "wrong_solutions": wrong,
+                "score": score,
+                "gain_vs_baseline": gain,
+                "wrong_solutions": wrong,
+                "max_rss_gb": max_rss_gb,
+                "high_memory_events": high_mem_events,
             })
             _save_state(state_path, state)
             completed[cfg.name] = sub_path

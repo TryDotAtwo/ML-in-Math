@@ -1,0 +1,18 @@
+{
+  "baseline_total": 158680,
+  "submission_total": 158680,
+  "total_gain": 0,
+  "improved_cases": 0,
+  "same_cases": 2405,
+  "worse_cases": 0,
+  "avg_gain_when_improved": 0.0,
+  "max_gain": 0,
+  "max_gain_id": null,
+  "time_sec": 0.15333771705627441,
+  "sec_per_sample": 6.375788650988542e-05,
+  "mean_baseline_len": 65.97920997920998,
+  "mean_submission_len": 65.97920997920998,
+  "improved_frac": 0.0,
+  "wrong_solutions": 0,
+  "score_from_submission": 158680
+}
