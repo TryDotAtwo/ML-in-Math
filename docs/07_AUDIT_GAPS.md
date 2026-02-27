@@ -2,6 +2,8 @@
 
 Дата: 2025-02-21. Сравнение `src/` с `pancake_91584_final_edit.py` и `копия_блокнота__pancake_problem_.py`.
 
+**Как в оригиналах получают скоры:** блокнот — только v4 с treshold=2.6 (без beam) → 89980; 91584 — только baseline+beam с gap (без блокнота) → 91584. Подробнее в `01_PROJECT_OVERVIEW.md` и `04_RESULTS.md`.
+
 ---
 
 ## 1. Что уже есть в src/ и соответствует
@@ -13,7 +15,7 @@
 | pancake_sort_moves | core/baseline.py | Классический жадный |
 | breakpoints2, gap_h, mix_h, make_h | heuristics/h_functions.py | — |
 | beam_improve_or_baseline_h | heuristics/beam.py | — |
-| pancake_sort_v3_1, notebook_baseline_v3_1 | notebook_search/solvers.py | Только один солвер |
+| pancake_sort_v3_1, v3_5, v4, notebook_baseline_* | notebook_search/solvers.py | v3_1, v3_5, v4 + SOLVER_REGISTRY |
 | evaluate_submission_vs_baseline | submission/evaluate.py | — |
 | best_solution | submission/best.py | + опциональный best_path, авто score из solution |
 | solve_notebook_then_beam, solve_baseline_then_beam, solve_unified | crossings.py | Скрещивания 2–4 |
@@ -47,7 +49,8 @@
 | save_progress | Сохранение progress_map (id, solution) в CSV | **Есть** — `submission/merge.save_progress` |
 | merge_submissions_with_partials | Объединение base + partial по длине решения | **Есть** — `submission/merge.merge_submissions_with_partials` |
 | RunRow (dataclass) | Строка результата run_grid | Не перенесён (run_grid возвращает DataFrame) |
-| **ML-блок** | Модели, обучение, beam_improve_with_ml, граф Кэли и т.д. | **Нет** — опционально вынести в `src/ml/` при необходимости |
+| **ML-блок (91584)** | Модели Pilgrim/EmbMLP, beam_improve_with_ml, граф Кэли | **Нет** — опционально вынести в `src/ml/models.py`, `beam_ml.py` при необходимости |
+| **RL (политика)** | Окружение, π(a\|s), BC, PG, инференс | **Есть** — `src/ml/` (env, policy, train, inference), скрипт `run_rl.py` (train/solve/evaluate/submit, команда `full --train`) |
 
 ---
 
@@ -65,7 +68,7 @@
 - **00_AGENT_NAVIGATION**: структура актуальна; после добавления солверов и экспериментов стоит добавить ссылку на реестр солверов и на 07_AUDIT_GAPS.
 - **01_PROJECT_OVERVIEW**: описание задачи и источников верное; можно добавить одну строку про «полный функционал см. 07_AUDIT_GAPS».
 - **05_TESTS**: описание тестов и запуска корректно; для новых модулей (run_grid, check_steps, merge) нужно добавить пункты в описание тестов.
-- **06_REFACTORING_PLAN**: план выполнен частично; отсутствуют run_grid, full_eval, merge, все солверы блокнота, ML. После доработок обновить таблицу «Источники по модулям».
+- **06_REFACTORING_PLAN**: план выполнен частично; ml/ реализован для RL (env, policy, train, inference); опционально — models.py, beam_ml.py из 91584.
 
 ---
 

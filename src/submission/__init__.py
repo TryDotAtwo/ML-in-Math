@@ -4,6 +4,7 @@ from .check_steps import check_steps
 from .process_row import process_row
 from .merge import save_progress, merge_submissions_with_partials
 from .compare import compare
+from .experiment_log import log_experiment, log_evaluate, analyze_results
 
 __all__ = [
     "evaluate_submission_vs_baseline",
@@ -13,4 +14,7 @@ __all__ = [
     "save_progress",
     "merge_submissions_with_partials",
     "compare",
+    "log_experiment",
+    "log_evaluate",
+    "analyze_results",
 ]

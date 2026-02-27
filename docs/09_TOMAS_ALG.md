@@ -1,0 +1,554 @@
+### Tom Rokicki: Contest-Winning Pancake Solver (конспект)
+
+**Источник:** оригинальный текст Tom Rokicki (файл `baseline/09_TOMAS_ALG.md`, а также страница с описанием решения для Al Zimmermann’s Programming Contest).  
+Здесь — сжатый конспект идей, важных для нашего проекта.
+
+---
+
+### 1. Контекст
+
+- Задача: классический **pancake sorting** с цельной метрикой «минимум flips».
+- Соревнование Al Zimmermann:
+  - **Part 1:** построить «наиболее трудный» стек (минимум длина оптимального решения).
+  - **Part 2:** решить набор сложных стеков как можно короче.
+- Tom Rokicki выиграл обе части, комбинируя:
+  - теоретическую работу (bounds, hard stacks),
+  - мощные исследовательские солверы,
+  - автоматизацию прогонов и сабмитов.
+
+---
+
+### 2. Базовые идеи и первый подход
+
+- **Итеративное углубление DFS по нижней оценке:**
+  - расширение перестановки, подсчёт **breaks** (разрывов) как нижней оценки числа ходов;
+  - DFS с порогом по `g + h` (экономия по времени и памяти).
+- Эксперименты на случайных стеках:
+  - большинство стеков размера N решаются за ~N ходов;
+  - редкие стеки требуют N+2; на первых экспериментах всё выглядело «слишком легко».
+
+---
+
+### 3. Полный перебор для малых N и границы
+
+- Том делает **полный BFS** по всем стекам размера 13:
+  - ~6.2e9 состояний;
+  - хранение в памяти по 2 бита на состояние;
+  - выясняет, что максимум длины решения = 15.
+- Используя эти данные и более тонкий анализ, он:
+  - выводит, что максимум для N=14 равен 16;
+  - строит таблицы распределения глубин (сколько стеков требуют k ходов).
+- Эти техники дают:
+  - строгие результаты по диаметру для малых N;
+  - «идеальные hard‑стэки» для генерации и тестирования.
+
+---
+
+### 4. Hash‑based BFS с отбрасыванием худших состояний
+
+Основная инженерная «рабочая лошадка» Tom’а — модифицированный **BFS с ограниченной памятью**:
+
+```text
+thislevel = hashset of [initial_position] ;
+forever
+   nextlevel = empty hashset ;
+   for each position p in thislevel
+      for each possible move m
+         p' = domove(p, m) ;
+         if p' == solved then
+            throw new solution(p')
+         h = hash(p') ;
+         if (nextlevel[h] == empty ||
+             nextlevel[h] worse_than p')
+            nextlevel[h] = p' ;
+   thislevel = nextlevel ;
+```
+
+- Хеш‑таблица фиксированного размера, **direct‑mapped**:
+  - при коллизии худшее состояние выбрасывается;
+  - «качество» оценивается по числу разрывов (breaks) или более сложным метрикам.
+- Это даёт:
+  - очень быстрый в среднем BFS;
+  - контролируемый расход памяти;
+  - почти оптимальные решения для большинства стеков.
+
+---
+
+### 5. Инкрементальное представление стека и hash
+
+Чтобы ускорить миллионы ходов:
+
+- Вместо массива `a[i]` (размер блинчика на позиции i) используется **двусвязный список через сумму соседей**:
+  - массив `b[i] = prev + next`;
+  - достаточно помнить первый элемент.
+- Flip размера m (разворот первых m) можно сделать, изменив только **три ячейки**:
+
+```text
+b[first] += p         # первый получает нового соседа p
+b[prev]  -= p         # предыдущий сосед p теряет его
+b[p]     += first-prev
+```
+
+где `p` — блинчик на позиции m, `prev` — его сосед перед flip, `first` — текущий первый.
+
+- Переход по стеку:
+
+```text
+prev = first
+p = b[prev]
+do {
+   next = b[p] - prev
+   prev = p
+   p = next
+   // возможный ход здесь
+} until (p == N)
+```
+
+- **Инкрементальный hash:**
+  - каждой позиции/числу сопоставляется простое число (`prime[i]`);
+  - hash пересчитывается по формуле вида:
+
+```text
+hashdelta = (prime[first] - prime[prev]) * p + (first - prev) * hash[p]
+```
+
+  - это позволяет быстро обновлять hash без повторного обхода стека.
+
+---
+
+### 6. Побеждающая эвристика: singletons, «burnt pancakes»
+
+- Идея: **не все состояния с одинаковым числом break’ов одинаковы по сложности**.
+- Рассматриваются:
+  - «связанные цепочки» как эквивалент burnt pancakes (сложнее);
+  - **singletons** — блинчики, у которых по обе стороны разрывы, их можно «ориентировать» по‑разному → дают больше свободы.
+- Эвристика отбора в hash‑таблице:
+  - если два состояния имеют одинаковое число break’ов, **оставить то, где больше singletons**.
+- Том приписывает этой простой идее почти весь выигрыш:
+  - без неё: решения хуже на несколько ходов;
+  - с ней: сокращение глубины решений (например, с 113 до 111).
+
+---
+
+### 7. Hard‑стеки: s5, l9 и арифметические последовательности
+
+- Конструкция **s5(n)**:
+  - базовая подпоследовательность `s5 = 1 3 5 2 4`, расширяемая до длины n;
+  - приводит к семейству стеков с регулярным «excess» (количеством ходов сверх числа break’ов).
+  - Том показывает таблицу excess для `s5(n)` до 100, делает предположение о примерно `(11/10)*n` и т.д.
+
+- Конструкция **l9(n)**:
+  - последовательность `l9 = 1 5 8 3 6 9 4 7 2`, повторяемая с сдвигом;
+  - даёт ещё более тяжёлые стеки (примерно `10n/9`).
+
+- Также рассматриваются **арифметические прогрессии** вида `(a*i + b) mod N`:
+  - некоторые из них (например, `a=3, b=0`) дают очень тяжёлые стеки, конкурирующие за худший случай.
+
+---
+
+### 8. Поиск с двух концов и восстановление решений
+
+- Помимо обычного и обратного (solve inverse) решения, Том:
+  - запускает поиск **одновременно от начала и конца**;
+  - рассматривает добавление ходов в начало и конец траектории;
+  - хранит для каждого уровня последний ход, ведущий к состоянию, и по хешу восстанавливает полную последовательность ходов.
+
+- Он также создаёт:
+  - «широкий» вариант solver’а (разделение hash‑таблицы на зоны по числу break’ов);
+  - «огромный» вариант, где сами позиции хранятся на диске, в памяти — только метрики.
+
+---
+
+### 9. Автоматизация прогонов и сабмитов
+
+- Том строит Perl‑фреймворк, который:
+  - ведёт список стеков и текущих лучших решений;
+  - стартует solver’ы на доступных машинах с учётом их памяти;
+  - автоматически сабмитит улучшения;
+  - парсит сайт Al Zimmermann’а, чтобы отслеживать чужой прогресс.
+- Это гарантирует, что новые лучшие решения отправляются сразу, даже когда он не у компьютера.
+
+---
+
+### 10. Связь с нашим проектом
+
+Полезные для нас идеи:
+
+- **Breaks и gap‑подобные эвристики:**
+  - мы уже используем `gap_h` и `breakpoints2` (`src/heuristics/h_functions.py`);
+  - идеи Tom’а о singletons и burnt‑подобных цепочках можно превратить в дополнительные термы эвристики или приоритеты в beam.
+
+- **Hash‑based BFS и beam‑подобный поиск:**
+  - наш `beam_improve_or_baseline_h` концептуально близок: ограниченный набор лучших состояний на каждом уровне;
+  - direct‑mapped hash с отбрасыванием худших кандидатов похож на beam с жёстким ограничением.
+
+- **Инкрементальное представление стека:**
+  - сейчас мы работаем с простыми списками; если когда‑нибудь упремся в скорость низкоуровневых операций, идеи Tom’а (двусвязный список через сумму соседей + инкрементальный hash) могут дать ощутимый выигрыш.
+
+- **Генерация hard‑стеков:**
+  - s5, l9, арифметические последовательности `(a*i + b) mod N` можно использовать:
+    - для стресс‑тестов наших эвристик;
+    - для построения отдельных бенчмарков в стиле Bouzy/Valenzano–Yang;
+    - для проверки гипотезы H_grid/H_heuristic на «тяжёлых» регионах пространства.
+
+Полный текст конспекта (с деталями и цитатами) находится в `baseline/09_TOMAS_ALG.md`; этот файл даёт сжатое резюме и связку с нашим кодом.
+
+### Tom's Pancake Entry (Tom Rokicki)
+
+Это конспект оригинального описания решения Томаса Рокицки для Al Zimmermann's Programming Contest по pancake sorting. Текст ниже — сохранённое содержимое с небольшой разметкой в формате Markdown (структура, таблицы, код-блоки), без изменения смысла.
+
+---
+
+### Initial Analysis
+
+When I first saw the description of the contest and pancake flipping, I thought to myself, this can't be that hard: Given a permutation, order it in the minimal number of prefix reversals. To simplify some things, we tack on an extra number on the end, equal to the length of the sequence, so
+
+```text
+3 1 5 2 4
+```
+
+becomes
+
+```text
+3 1 5 2 4 6
+```
+
+and we disallow movement of that last number. We define a \"break\" to be a point in the sequence between two numbers whose absolute difference is not one; the above sequence has five breaks. Every move (prefix reversal) can reduce the number of breaks by at most one, so the number of breaks is a lower bound on the required number of moves. This is perfect for a depth-first search with iterative deepening, terminating the search of a subtree whenever the number of remaining moves is less than the current number of breaks.
+
+So I coded this up and ran it for a bunch of random stacks. It was apparent at that point that a stack of size N generally takes very close to N moves; over hundreds of random stacks of sizes 10 to 100, I only found a couple that took N+2 moves, and none that took more. So I said to myself, boy, that was easy, and sent off a quick note to Al: This contest will be over very quickly; a simple program like this appears to solve stacks optimally very rapidly. I also submitted one of my random 102-distance stacks as my entry in Part 1, and figured I was done. (That first program, somewhat improved, is here; for some stupid reason, I use 0-based numbers for my stacks, so the stack above would be given on input as `2 0 4 1 3`.) I'll bet Al got a good chuckle out of that email.
+
+At that point I was just a bit disappointed, as the worst case stacks of size 100 appeared to be taking about an hour to solve, so it seemed Part 2 would be over very quickly, and those with access to the best computing resources (for instance, clusters in Universities or research laboratories) would have a clear advantage. Indeed, Al posted in the newsgroup:
+
+> On the other hand, I have some (very recently acquired) evidence that finding the shortest sequence of flips to sort a 100-pancake stack is not beyond the capacity of a good algorithm running on a fast machine. So it is possible that the leading scores for Part II may stabilize at some point.
+
+### Disaster!
+
+So I thought I'd exhaustively search some state spaces for a small number of pancakes. It was straightforward to show that there is no stack of size 13 that takes more than 15 flips; the N+2 conjecture looked pretty good still. But then a bunch of things happened rather quickly. A web search found a few papers on this problem, and some people posted in the newsgroup about these papers and their results. One of the results was a way to build a stack of size 16n that took at least 17n moves to sort. Another result was a stack of size only 19 that took 22 moves to sort; that's N+3! And finally, someone posted the stack
+
+```text
+2 1 4 3 6 5 8 7 10 9 12 11 14 13 16 15 18 17 20 19 ... 50 49
+```
+
+that my depth-first solver simply would not solve! This was the first stack that I found that gave it absolute fits. (Later I would find many, many more.)
+
+---
+
+### More Exhaustive Exploration
+
+So I was consternated. But I was able to prove that there is no stack of size 14 that takes more than 16 flips. This would seem to take an exploration of 87,178,291,200; even at one bit per state, that's 11GB of RAM! How did I do this?
+
+What I did was I explored a state space of size 13 exhaustively; this has only 6,227,020,800 states. I used two bits per state and did a breadth-first search; luckily one of my home servers has 2GB of RAM (the one this file is served from). There were no stacks that required more than 15 moves, and there were only 2,001 stacks that required 15 moves. The distribution is:
+
+| Depth | Count        |
+|-------|-------------:|
+| 0     |            1 |
+| 1     |           12 |
+| 2     |          132 |
+| 3     |        1,451 |
+| 4     |       14,556 |
+| 5     |      130,096 |
+| 6     |    1,030,505 |
+| 7     |    7,046,318 |
+| 8     |   40,309,555 |
+| 9     |  184,992,275 |
+| 10    |  639,783,475 |
+| 11    | 1,525,125,357 |
+| 12    | 2,183,056,566 |
+| 13    | 1,458,653,648 |
+| 14    |   186,874,852 |
+| 15    |         2,001 |
+
+The program that did the search is here. We can use this information to figure out the worst case for N=14. First, I was able to find a stack of size N=14 that took 16 moves, so we know the worst case is at least that. Let's assume there is a stack of size 14 that takes 17 moves. That stack has the number 14 in it somewhere. Clearly the 14 is not at the back, because otherwise it's equivalent to a stack of size 13. If the 14 is at the front, then in one move it can be reduced to a stack of size 13, which we know takes a maximum of 15 moves. So the 14 must be somewhere in the middle. If we take that stack that takes 17 moves and apply a move to bring the 14 to the front of the stack, and a second move to bring the 14 to the back of the stack, then we have reduced it to a stack of size 13 that takes 15 moves.
+
+The key thing here is that we already know all stacks of size 13 that take 15 moves, and there are only a few of them. So we can take each of these stacks in turn, and compute all length 14 stacks that reduce to them in two moves, and solve each of these with our DFS solver. I've done this, and for each resulting length 14 stack, there is a solution in 16 moves or less. Therefore, there is no stack of length 14 that requires 17 moves. (This is a new, unpublished result. The technique is not new; it is described in [HS97] where they use it to prove that there is no stack of length 13 that requires 16 moves.)
+
+Since then, Alexander Alexandrov has taken this even further; he's exhaustively explored N=14, and shown there is no 15 +3! At N=14, the histogram is:
+
+| Depth | Count          |
+|-------|---------------:|
+| 0     |              1 |
+| 1     |             13 |
+| 2     |            156 |
+| 3     |          1,871 |
+| 4     |         20,703 |
+| 5     |        206,681 |
+| 6     |      1,858,149 |
+| 7     |     14,721,545 |
+| 8     |    100,464,346 |
+| 9     |    572,626,637 |
+| 10    |  2,609,061,935 |
+| 11    |  8,950,336,881 |
+| 12    | 21,189,628,403 |
+| 13    | 30,330,792,508 |
+| 14    | 20,584,311,501 |
+| 15    |  2,824,234,896 |
+| 16    |         24,974 |
+
+For more information on how many moves a particular size of pancake stack might take, see my after-contest work on witnesses.
+
+---
+
+### Prior Research and a New Approach
+
+Anyway, so everyone was talking about these papers, so I rushed over to the library and got copies. There is the Gates and Papadimitriou paper from 1978, that first showed that there is no constant k such that a stack of size N can always be solved in N+k moves, as N grows. This is an excellent result. Then there is the Heydari and Subdorough paper of 1997 (almost twenty years later!) that improved on Gates' results somewhat. (In that paper they conjecture that their phi(n) requires (8/7)n-1 moves for n=0 mod 7 and n>28; we disprove this for n=42 and larger by finding a solution for n=42 of length 46.) I read these papers, tried my solver on some of the stacks they gave, and decided I needed a totally new approach.
+
+Well, my depth-first search solver wasn't doing the job. If depth-first search doesn't work, why not try breadth-first search? So I sat down to write a breadth-first search solver. Of course it wasn't quite so simple; I had realized that an exhaustive solver wasn't going to always finish, so I decided my breadth-first solver would not be exhaustive; instead, at each level, it would decide on a particular set of candidate positions to retain. I did want to eliminate redundant positions though (positions that were obtained by more than one path), so I decided to use a hash table to store each level. I did not want a complete hash table, though; on collisions I wanted to throw away inferior positions, so I used a simple direct-mapped hash table. So the program looked like:
+
+```text
+thislevel = hashset of [initial_position] ;
+forever
+   nextlevel = empty hashset ;
+   for each position p in thislevel
+      for each possible move m
+         p' = domove(p, m) ;
+         if p' == solved then
+            throw new solution(p')
+         h = hash(p') ;
+         if (nextlevel[h] == empty ||
+             nextlevel[h] worse_than p')
+            nextlevel[h] = p' ;
+   nextlevel = thislevel ;
+```
+
+That's very straightforward. For `worse_than` we can simply use a count of the breaks; this works well. Indeed, this program's runtime is a product of the length of the input sequence, the length of the output sequence, and the size of the hash table — polynomial! You seldom get better than that. Termination is another question, but in practice the program always terminated, so I didn't worry too much about the theoretical concerns. With a small hash size, you get very quick results; in practice, a hash size of only 10,000 gave me very nearly optimal results in only a second or two, for some definition of nearly optimal. Give it more memory and let it run a little longer, and it will sometimes find better results.
+
+---
+
+### Incremental Improvements
+
+About the time I was perfecting this program, people started hinting around in the newsgroup about a super-fast move algorithm that could do millions of moves a second even on inferior processors. I had not thought too much about that; I was still using a simple array of pancake sizes as my fundamental representation, and a hash function that iterated over the whole array. But based on the clues in the newsgroup, I was able to reinvent the xor-doubly-linked trick (only I used plus instead of xor because of its nicer mathematical properties). For those of you who don't know this trick, I'll describe it next — but I was not the originator, I only independently discovered it. It probably sped up the program by a factor of three or so.
+
+The normal representation is to use an array where `a[i]` contains the size of the pancake at position `i`. With the add trick, the pancake stack is instead represented as a doubly-linked list using an array `b[]`, where `b[i]` contains the *sum* of the preceding and succeeding pancakes. In addition, you need to remember the first pancake somewhere.
+
+Why is this a cool representation? Consider a flip. In the normal representation, for a flip of m pancakes, you need to modify all the elements of `a[i]` for `0 <= i < m`; no matter how you do this, it's going to be slow. But in the new representation, if you know which pancake is at position m (call this `p`), at position m-1 (call this `prev`), and at the beginning (`first`), all you need to do to \"flip\" it is:
+
+```text
+b[first] += p ;
+b[prev] -= p ;
+b[p] += first - prev ;
+```
+
+because what's happening is the pancake at `first` is gaining a neighbor (`p`), the pancake at `prev` is losing a neighbor (`p`), and the pancake at `p` is having a neighbor changed from `prev` to `first`. The key is that the information associated with pancakes on the interior of the flip does not change during the flip; the neighbors of those pancakes (and thus their sum) remains the same. To walk the entire stack from front to back, we do something like:
+
+```text
+prev = first ;
+p = b[prev] ;
+do {
+   next = b[p] - prev ;
+   prev = p ;
+   p = next ;
+   // this is a possible flip here
+} until (p == N) ;
+```
+
+If mostly what you are doing is considering all possible moves for a set of positions, this works very nicely. Why did I use addition instead of xor? It's because I leveraged this incremental representation to give me an incremental hash computation. My hash function gave each position 0..N a prime weight, and the size of the hash table is a larger prime. If I make the move above, I can also calculate the incremental hash with:
+
+```text
+hashdelta = (prime[first] - prime[prev]) * p + (first - prev) * hash[p]
+```
+
+which is very fast and sweet; no need to iterate over the whole array again. And since I only ever copy the stack when I'm storing it into the hash, and since I do that infrequently compared to the number of moves I make, this gives a very nice speedup to the program.
+
+The primes are generated randomly, so each run of the program uses a different hash order and thus explores the state space in a different order. This means that if one run of the program doesn't find a good solution, running the program again with the same set of parameters (but a new random seed) may well find a good solution.
+
+---
+
+### The Winning Heuristic
+
+This all worked reasonably well, but there was one more change I made that gave a tremendous improvement in the results. I added another heuristic to the `worse_than` computation above. Two stacks might have the same number of breaks, yet one might be much easier to solve than the other. Is there some structural property I can quickly compute to estimate this? It turns out there is. Consider that burnt pancakes (pancakes with distinguishable sides) are much more difficult to solve than pancakes that aren't burnt. Further, if we have a sequence of pancakes in the stack that are already joined, they are effectively acting as a burnt pancake. On the other hand, singletons (a pancake that has a break both immediately before and immediately after it) can be \"oriented\" either way, and thus permits a wider range of solutions. So if two stacks have the same number of breaks, but one has more singletons than the other, I keep the one with more singletons. It turns out this can easily be computed incrementally as well. This single simple heuristic I credit for almost all of my quick results; I think it is the single thing that let me win this contest. For instance, without the heuristic, using 100MB of RAM, the breadth-first program finds a solution of length 113 for my part-1 submission; with the heuristic, the program finds a solution of length 111.
+
+---
+
+### Recovering Solutions
+
+The breadth-first algorithm listed above will tell you how long the resulting solution is — but it will not print the solution. Because we are using a direct-mapped hashtable, it's actually quite easy to recover the solution. We simply remember for each level the last move that lead to the position stored for that hash value. To recover the solution, I simply take the final (solved) position, and look up the move that lead there, using the hash value of this position. I perform that move on the solved position to calculate the previous position, calculate the hash value of that, and use this hash value to index the array stored from the previous level; this gives me the move before last. I repeat until I have the entire move sequence. Since this move array is only read once (on recovery) I store it on disk and do a seek per move to recover the moves.
+
+---
+
+### Backwards Solutions
+
+Each stack is a permutation, as is each move. The inverse of each move is that move itself; the inverse of a sequence of moves is just the reverse of the sequence of moves. It is also easy to invert a permutation directly. It turns out that for various reasons having to do with the structure of a sequence of permutations and where wastes occur, frequently the inverse stack is easier to solve than the original stack. (A waste is a move that does not decrease the number of breaks.) So I added code to my breadth-first solver to start with the inverse permutation of the input stack, solve that, and then reverse the result sequence. Indeed, you can run the breadth-first solver with just the original input permutation, just the inverse permutation, or both concurrently; sometimes one set of options works better than others. For instance, for the IK-1 pattern, going forward with 10 MB of RAM gives you a length 116 solution; going backwards from the inverse with the same memory gives you a much better length 111 solution.
+
+---
+
+### Generating a Hard Stack
+
+At this point I had a reasonably competent solver, so it was time to try to generate a hard stack. I had enumerated all the hard stacks of size 13 already, so I examined them to look for common features, and I didn't see very much. The papers already mentioned did give construction details for stacks they used to prove their results, so the very next thing I did was use their ideas and simply extrapolate them out to size 100, and submit a stack constructed that way. But I did wonder if I could do better.
+
+The construction that both papers used was to define a shorter sequence, s, and then to repeat it by adding a constant to each element and concatenating the result. For instance, Heydari and Sudborough used the base sequence
+
+```text
+1 7 5 3 6 4 2
+```
+
+and, by adding 7 to each element and repeating, generated longer stacks such as
+
+```text
+1 7 5 3 6 4 2 8 14 12 10 13 11 9 15 21 19 17 20 18 16
+```
+
+So using a similar approach to that I used in the prior Squares contest, I thought I'd enumerate all short subsequences, generate some repeated combinations of them, and use my solver to determine how hard they were. I decided to focus on subsequences that started with 1, although I did not introduce this requirement until about size 5. I figured I'd eliminate any subsequences that did not have the maximum number of breaks and also those whose inverse I had already considered (since a stack and its inverse have the same minimum solution length). I extrapolated each subsequence to a length as near 100 as I could get, and ran my solver for increasing sizes of hashtables until I determined it was uninteresting (had a short solution). Almost all subsequences were eliminated almost immediately, using a hash table of only 10K bytes (that's about 100 positions per level); only a few required exploration with larger hash tables, and only a very few survived that. I focused on subsequences up to length 9, although I also ran a bunch of length 10 and 11. This investigation gave me a list of about 100 candidate subsequences of lengths 5-11 that appeared interesting enough to warrant further investigation.
+
+For each of these subsequences, I ran my solver much more intensely over each, with much larger memory sizes, and also on a range of smaller derived stacks. I also used my exhaustive solver at the smaller sizes. I made an assumption that, for any subsequence, the solution length would be sublinear in the number of times that the subsequence was repeated; that is, if extending a sequence by two more instances of the subsequence did not add at least one to the number of required wastes, I figured that subsequence was not interesting. The elimination of subsequence candidates was done mostly by hand; since there were only about 100 candidates, this wasn't too bad. In the end, I was left with two subsequence candidates that looked promising:
+
+```text
+1 3 5 2 4
+```
+
+which I call `s5`, and
+
+```text
+1 5 8 3 6 9 4 7 2
+```
+
+which I call `l9`. Let's talk about `s5` first since I found it first and since I believe it to be most interesting. Let us call `s5(n)` the stack `s5` extended to a length of n; that is, `s5(15)` is
+
+```text
+1 3 5 2 4 6 8 10 7 9 11 13 15 12 14
+```
+
+I was able to prove the following things about `s5(n)`:
+
+| Stack   | Excess |
+|---------|--------|
+| s5(5)   | 0      |
+| s5(10)  | 1      |
+| s5(15)  | 1      |
+| s5(20)  | 2      |
+| s5(25)  | 2      |
+| s5(30)  | 3      |
+| s5(35)  | 3      |
+| s5(40)  | 4      |
+| s5(45)  | 4      |
+| s5(50)  | ≤5     |
+| s5(55)  | ≤5     |
+| s5(60)  | ≤6     |
+| s5(65)  | ≤6     |
+| s5(70)  | ≤7     |
+| s5(75)  | ≤7     |
+| s5(80)  | ≤8     |
+| s5(85)  | ≤8     |
+| s5(90)  | ≤9     |
+| s5(95)  | ≤9     |
+| s5(100) | ≤10    |
+
+In the table above, I list the \"excess moves\" required to solve it; it; this is the minimum number of moves less the number of breaks (which is equal to the length in this case). Note how regular the bounds seem to be. I think I have a proof that this stack requires (11n/10) moves, which would be a new lower bound, according to the same lines of the proof by Gates and Papadimitriou of their stack, but I'm not completely sure about the proof. Maybe someone can help me with this one? [Since the contest, I've disproven this by finding a solution to `s5(90)` in only 98 moves, and a solution to `s5(100)` in only 109 moves.] If this turns out to be true, it's a great result. I still have not been able to improve this, and I believe now that `s5(100)` would have won this contest with a score of 110 (the winning stack only had a score of 110). Or alternatively, maybe someone can come up with a solution of this stack that requires less than 110, or a solution to any `s5(n)` that requires less than 11n/10, for even n. For your convenience, `s5(100)` is
+
+```text
+1 3 5 2 4 6 8 10 7 9 11 13 15 12 14 16 18 20 17 19 21 23 25 22 24 26 28 30 27 29 31 33 35 32 34 36 38 40 37 39 41 43 45 42 44 46 48 50 47 49 51 53 55 52 54 56 58 60 57 59 61 63 65 62 64 66 68 70 67 69 71 73 75 72 74 76 78 80 77 79 81 83 85 82 84 86 88 90 87 89 91 93 95 92 94 96 98 100 97 99
+```
+
+I will award a prize of $100 USD to the first person to find a solution to this stack requiring less than 110 moves, and post it to the contest newsgroup; note, if I find it first, and post it first, then I \"win\" the prize. [Oops, sorry, this no longer applies since I've solved it shorter.] (I don't really expect anyone to collect this money.) Note that `s5(100)` has the same initial 89 pancakes as KB-1, which has a solution in 108 moves.
+
+I submitted `s5(100)` as an entry, but then later found `l9`. As far as I could determine, `l9` was superior to `s5`, because my initial investigations found
+
+| Stack  | Excess |
+|--------|--------|
+| l9(9)  | 1      |
+| l9(18) | 2      |
+| l9(27) | 3      |
+| l9(36) | 4      |
+| l9(45) | ≤5     |
+| l9(54) | ≤6     |
+| l9(63) | ≤7     |
+| l9(72) | ≤8     |
+| l9(81) | ≤9     |
+| l9(90) | ≤10    |
+| l9(99) | ≤11    |
+
+and thus, it appeared that `l9(n)` took 10n/9, a greater constant than the 11n/10 from `s5`. So I did some experimentation, found a length 10 cap that appeared to work well when stuck on top of `l9(n)`, and made my final submission.
+
+---
+
+### Luck Plays a Role
+
+I continued to search for good subsequences to submit, and could not find anything better. But about a day before the deadline for Part 1, I had a worrying thought — what if this type of stack was not the worst? What about other forms of regular stacks? In particular, what about stacks of the form `(a*i + b) % N` for different values of constants `a` and `b`? I quickly wrote a Perl script to check out candidate values for `a` and `b` (and `N`) and reject them, much like I rejected subsequences above. Much to my consternation, there appeared to be certain values of `a` and `b` that required longer solutions than what I had already submitted! In particular, `a=3` and `b=0` (what IK-1 eventually turned out to be) looked particularly bad for me; at this point, I had a best solution of 111 for my submission to Part 1, but this stack appeared to require 116 moves! It was very close to the deadline for Part 1, and I did not have enough time to run some huge-memory overnight runs to tighten this bound, and for whatever reason I did not run the inverse version of my solver. So I had to make a quick decision: submit the new `0 3 6 ...` stack, which I had not explored sufficiently? As a last-minute submission, meaning anyone else with an equivalently hard stack would beat me? Or count on my 111 actually being the hardest, with my middle-of-the-pack submission time? I decided to submit the new `0 3 6 ...` stack!
+
+Ahh, but you good reader know that that wasn't my stack, and that if I had actually submitted it I would not have won. What happened? What happened was that when I tried to submit, I couldn't; the page said the deadline had passed! I prepared a nasty letter to Al, telling him he said noon on the 22nd, and it was well before noon on the 22nd . . . but then I read the page more closely. Switzerland? GMT? What's that? Arghhh! I had the deadline wrong! GMT! Plus nine hours! I was so mad . . . but so lucky.
+
+As it turns out, stacks of that form `(a*i + b)` ended up being the hardest for my solver to solve; in particular, the JCM stack drove me nuts. But I'll talk about that more later.
+
+---
+
+### Automatic Submissions
+
+At this point I was still fairly convinced that the optimal solutions would be found very quickly by someone with a quick solver. Indeed, my solver had seemed to generally find very good solutions very quickly. So I was positive that the contest would be over by the first day, that someone would find the best solutions in a matter of hours and have them submitted and ready to go. I did not want to waste any time submitting solutions by hand. So I built a framework from some impossibly ugly Perl scripts that would:
+
+- Keep track of the stacks that needed to be solved, and the current best solution I had so far.
+- Start my solver on the machines I had available, taking into account the amount of memory in the machine, the runs I had already made for that stack and in general, and the stacks that were currently \"counted\" in Part II.
+- Automatically submit any new solutions as the solver found them.
+- Keep track (by scraping Al's site) of the other people's progress, and the known results for the other stacks.
+
+The Perl language makes this sort of thing very easy to do. And it meant that when my solver found a solution when I was sleeping, or running, or diving, or eating, that that solution would be submitted immediately. I would not lose this contest by a few minutes! And I wanted to have this set up so that people who had more CPU power than I would not be at that much of an advantage; they may find the solutions faster than I did, but could they get them submitted faster?
+
+As it turned out, all this was moot. The problem was much harder than I thought; solutions took a long time in coming. I was amazed at how many further improvements occurred so late in the contest, both by others and by me.
+
+---
+
+### Further Improvements
+
+During the three months of the contest, I made a large number of improvements to the solver, few of which mattered. These are the days I submitted solutions, and how many solutions I submitted on those days:
+
+| Date        | Submissions |
+|------------|-------------|
+| 22 February | 82         |
+| 23 February | 4          |
+| 24 February | 1          |
+| 25 February | 4          |
+| 2 March     | 1          |
+| 5 March     | 2          |
+| 10 March    | 1          |
+| 26 April    | 1          |
+| 11 May      | 1          |
+
+As you can see, I had made almost all of my submissions early on; indeed, within the first two hours of the contest. A complete log of my submissions is here. I extended the notion of solving the inverse to solving from both ends concurrently; that is, I extended my breadth-first solver so that moves were added at the front *or* at the back of the eventual solution. Each node had not just 100 (approximately) successors, but 200 — 100 from making a move, and 100 from inverting the given position, making a move, and inverting it back (this is equivalent to appending a move to the end of the path). This probably helped a bit, but it is not clear how much.
+
+I also extended the solver so it could write each level to disk. This way, rather than keeping two levels in memory at once, I only needed to keep one. This also slowed the program down somewhat, especially when you take into account Linux's strange penchant for swapping out running programs rather than freeing up buffer cache pages. I added a wide solver option — rather than put all the positions for one level into the same shared hash table, I partitioned the hash table into a number (say z) of zones, and placed the positions into the partition of the hash table modulo the number of breaks mod z. What this did is let me find solutions that had more wastes early on in the solution, since during a normal run of the solver, positions with a small number of breaks were preferred.
+
+I even wrote a huge solver where the positions themselves were stored on disk, and the only thing in the hash table was the metrics describing the position. This let me run breadth-first solutions that had more than 200M positions at each level; these runs took several days each, 2GB of main memory, and used 30GB of temporary disk space during each run. (There was a lot of cleverness having to do with only needing to write, say, every fifth level to disk, and squeezing predecessor information tightly to minimize the number of bytes in memory per position.) These improvements probably gave me a move or two overall. But as a matter of fact, during the main part of the contest, improvements were obtained mostly by hand, using the search programs to solve shorter sequences and combining the results.
+
+Throughout the contest, I was under the impression that there were some really strong results being withheld for strategic reasons, so I never was comfortable with my lead. This may have worked out well for me, in the end, because it intensified my efforts. Had I known that my lead was truly strong, I may well have relaxed a lot more and not come through with the later results, or obtained them after others had already posted them.
+
+---
+
+### Timeline of Events
+
+Here's a summary of what happened during the contest from my perspective. I don't mention scores until about noon on the 22nd (which is when scoring finally worked correctly). All times here are Pacific Standard Time, and are probably off a fair bit because my server clock probably isn't very accurate).
+
+- **5:00, 22 February:** I get up early to look for the stacks. I find them, cut them out of the web page, and start my automatic solvers. I then go to the submission page and reverse-engineer the form to build an automatic submitter.
+- **5:30, 22 February:** Automatic submitter is working and submits my results for all stacks so far. Scoreboard doesn't seem to be working right, though, so I'm not sure what my standing actually is.
+- **12:00, 22 February:** I check my standings; I've got 24.97 points. That means I'm probably four moves behind overall. I've been submitting now for more than six hours (automatically; actually until this time I'm mostly watching the programs run as opposed to doing anything useful). I've made a total of 69 submissions so far. But things are running smoothly so I let it continue. No one has beaten the 111 I've already submitted for my stack, but I'm still in third place on Part 1.
+- **12:08, 22 February:** PZ -> 109 by me, but I'm still at 24.97.
+- **12:26, 22 February:** GDB -> 107 by me, but I'm still at 24.97.
+- **14:31, 22 February:** JCM -> 111 by me (an improvement of three steps over my previous best for this stack); this bumps me to 24.99; yeah!
+- **14:36, 22 February:** JCM -> 110 by me; still at 24.99, but now I'm at second place in Part 1.
+- **14:41, 22 February:** IK-1 -> 110 by me; finally I get to 25.00, and concurrently I take the lead in Part 1! Whee, this is fun.
+- **14:46, 22 February:** GDF -> 104 by someone else; not sure who. Dang, this cuts me to 24.99.
+- **19:36, 22 February:** FY -> 108 by me; still at 24.99.
+- **08:28, 23 February:** AA -> 109 by me; still at 24.99.
+- **10:58, 23 February:** JW-1 -> 109 by me; still at 24.99.
+- **11:53, 23 February:** PJ -> 101 by me; still at 24.99.
+- **15:44, 23 February:** GDF -> 104 by me; finally regained my 25.00. At this point the programs are still doing all the work; I'm just watching them spin.
+- **3:20, 24 February:** JDA -> 105 by someone; knocks me back down to 24.99. I'm asleep and don't realize it.
+- **19:53, 24 February:** JDA -> 105 by me; I regain my 25.00.
+- **04:54, 25 February:** JCM -> 108 by Jaroslaw Wroblewski cuts me down to 24.98. That's a two move improvement over my best, on a stack that's given me trouble already. We'll let my program continue and see if it gets any better.
+- **05:14, 25 February:** JW-2 -> 108 by me; still at 24.98.
+- **11:45, 25 February:** DF -> 105 by me; still at 24.98.
+- **14:20, 25 February:** GDF -> 103 by me; still at 24.98.
+- **20:36, 25 February:** JCM -> 109 by me; now I'm at 24.99. But I still can't match the 108 on that stack. At this point I start really analyzing the `(a*i + b)` stacks by hand, trying to look for patterns in the solutions of smaller stacks and seeing if they extrapolate.
+- **21:52, 2 March:** IK-1 -> 109; improved one of the two hard ones, but still at 24.99. This improvement I got partially by hand by starting with a sequence from shorter stack that uses the same pattern, and then trying to solve that stack. My automatic programs continue to run; I mess with the options every now and then but I'm not getting any new results.
+- **11:53, 5 March:** JCM -> 108; finally back to 25.00. This one was really tough; I used the same approach as I had on IK-1 by solving a lot of shorter stacks and trying out different move sequences. Finally I get success.
+- **12:13, 5 March:** GDF -> 102; sheer coincidence that this result pops out from the automatic solvers only a few minutes after I find JCM at 108 by hand!
+- **17:08, 10 March:** KB-1 -> 108 by me. No one has knocked me out of 25.00 yet, and I manage to cut down KB-1 using my wide solver.
+- **8:48, 15 March:** TR -> 110 by someone else; cuts me to 24.99 in Part 2 although I'm still at the top in Part 1. Does this mean `l9` is weaker than I thought, or is it a defect in my top cap?
+- **14:27, 26 April:** TR -> 110 by me; I'm back to 25.00. After more than a month of effort, I find that it's due to a weak `l9`. Specifically, `l9(72)` can be solved with only seven wastes. I find this by figuring out a way to solve `l9(36)` in such a way that the 1 pancake shows up at the front in the middle of the solution, but flipped (treating it as if it were burnt). Then I find a way to solve `l9(36) 36` (note I've added a pancake at the top) with only three wastes by using moves first from the front, then from the back, then from the front again (as if we have two full-pancake flips for free). I interleave these two sequences appropriately, and that's the improvement. I then combine this with a solution to the top 28 pancakes of my stack, and that's a 110 move solution. But now I'm worried; is there a way to cut it down further? If so, I'll be tied with a bunch of others at 109, but the only 109 who submitted before me is Jason Woolever with his JW-1. So I start to focus on his stack. If I can cut him to 108, then I'll still win Part 1 even if someone reduces mine to 109.
+- **10:13, 11 May:** JW-1 -> 108 by me. Through a similar approach to what worked for the last improvement (breaking up the stack, solving the pieces, and figuring out how to put them together) I manage to reduce JW-1 to 108 and give me some breathing room in Part 1. Next: PZ. He submitted after me, but he's currently in second place.
+- **14:20, 13 May:** PZ -> 108 by Alexander Alexandrov. Pushes my score in Part 1 down to 24.99. He found it before me! I have been working on this stack non-stop (and continued to through the end of the contest; never found a solution in 108.) This also brings Alexander up to second place in Part 1, so it was an important move for him!
+- **10:00, 21 May:** I go to sleep on pins and needles, certain that someone's holding back solutions that will knock me off in Part 2. I can only hope to survive in Part 1.
+- **8:00, 22 May:** I wake up late, go to the computer, and find I've lucked out!
+
+---
+
+### Thanks!
+
+I was very fortunate to win this contest. As you can tell by the writeup above, I had a wonderful, challenging, exciting time. I thank Al Zimmermann for putting this contest together, donating the prize money, writing the Contest Administrator, and everything else!

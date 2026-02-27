@@ -6,8 +6,9 @@ from __future__ import annotations
 from typing import List, Tuple, Any
 
 
-def pancake_sort_v3_1(perm, treshold: int = 3) -> Tuple[Tuple[int, ...], Any, int, int]:
-    """Эвристический поиск с порогом. Возвращает (moves_tuple, permute_search, arr_max_len, total_iter)."""
+def pancake_sort_v3_1(perm, treshold: int = 3, max_states: int | None = None) -> Tuple[Tuple[int, ...], Any, int, int]:
+    """Эвристический поиск с порогом. Возвращает (moves_tuple, permute_search, arr_max_len, total_iter).
+    Если задан max_states и достигнут — возвращается baseline (ограничение памяти)."""
     arr = list(perm)
     n = len(arr)
 
@@ -28,12 +29,14 @@ def pancake_sort_v3_1(perm, treshold: int = 3) -> Tuple[Tuple[int, ...], Any, in
                 permute_search[arr_] = (moves + (idx,), _stat)
 
     while target not in permute_search:
-
-        stage_permute_search = permute_search.copy()
+        if max_states is not None and len(permute_search) > max_states:
+            from ..core.baseline import pancake_sort_moves
+            baseline_moves = tuple(pancake_sort_moves(arr))
+            return ((baseline_moves, 0), permute_search, arr_max_len, total_iter)
 
         min_stat = min(i[1] for i in permute_search.values())
 
-        for arr in stage_permute_search:
+        for arr in list(permute_search.keys()):
 
             total_iter += 1
 
@@ -74,9 +77,9 @@ def pancake_sort_v3_1(perm, treshold: int = 3) -> Tuple[Tuple[int, ...], Any, in
     return permute_search[target], permute_search, arr_max_len, total_iter
 
 
-def notebook_baseline_v3_1(perm, treshold: int = 3) -> List[int]:
+def notebook_baseline_v3_1(perm, treshold: int = 3, max_states: int | None = None) -> List[int]:
     """Обёртка для использования v3_1 как baseline_moves_fn: возвращает только list[int] ходов."""
-    result, _, _, _ = pancake_sort_v3_1(perm, treshold=treshold)
+    result, _, _, _ = pancake_sort_v3_1(perm, treshold=treshold, max_states=max_states)
     moves_tuple, _ = result
     return list(moves_tuple)
 
@@ -145,7 +148,7 @@ def pancake_sort_v3_5(perm, treshold: int = 3):
     return permute_search[target], permute_search, arr_max_len, total_iter
 
 
-def pancake_sort_v4(perm, treshold: int = 10):
+def pancake_sort_v4(perm, treshold: int | float = 10):
     """Эвристический поиск v4 (с left_way). Возвращает ((moves, stat, way), None, mlen, iter)."""
     n = len(perm)
     arr_max_len = 0
@@ -206,6 +209,13 @@ def pancake_sort_v4(perm, treshold: int = 10):
             permute_search.pop(arr)
 
     return permute_search[target], None, arr_max_len, total_iter
+
+
+def notebook_baseline_v4(perm, treshold: int | float = 10) -> List[int]:
+    """Обёртка v4 для использования как baseline_moves_fn: возвращает list[int] ходов."""
+    result, _, _, _ = pancake_sort_v4(perm, treshold=treshold)
+    moves_tuple = result[0] if isinstance(result[0], tuple) else result
+    return list(moves_tuple)
 
 
 # Реестр солверов для анализа и оценки: имя -> (callable, default_treshold)

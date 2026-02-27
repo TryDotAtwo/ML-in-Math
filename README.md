@@ -22,13 +22,67 @@ python -m pytest tests/ -v
 ## Структура
 
 - `src/core/` — перестановки, ходы, классический pancake sort.
-- `src/heuristics/` — эвристики (gap_h, breakpoints2), beam search.
-- `src/notebook_search/` — эвристический поиск из блокнота (v3_1).
+- `src/heuristics/` — эвристики (gap_h, breakpoints2, `ld_h`, singletons), beam search.
+- `src/notebook_search/` — эвристический поиск из блокнота (v3_1, v3_5, v4).
 - `src/submission/` — оценка сабмита, best_solution.
 - `src/crossings.py` — скрещивания: блокнот+beam, baseline+beam, единый пайплайн.
+- `src/ml/` — RL: окружение, политика π(a|s), обучение (BC + опционально PG), инференс.
 - **`baseline/`** — примеры сабмишенов: `submission.csv`, `sample_submission.csv` (id, permutation, solution, ~2405 строк).
 
 Оригинальные файлы: `pancake_91584_final_edit.py`, `копия_блокнота__pancake_problem_.py` (не удаляются, используются как референс).
+
+## RL (минимальный скор): run_rl.py
+
+Отдельный скрипт для обучения политики и сабмита с целью **минимального суммарного скора**.
+
+Зависимость: `pip install torch` (уже в requirements.txt).
+
+**Один запуск — полный цикл (обучение → решение → оценка → сабмит):**
+
+```bash
+python run_rl.py full --train --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv --evaluate --submit
+```
+
+Команда `full --train` сначала обучает политики (BC, опционально PG) по всем n из теста, затем решает тест, при `--evaluate` сравнивает с baseline, при `--submit` отправляет файл на Kaggle. Без `--train` используются уже сохранённые модели.
+
+**Отдельные команды:**
+
+```bash
+# Только обучить политики (BC; опционально --pg-epochs для дообучения)
+python run_rl.py train --test baseline/sample_submission.csv --out-dir runs/rl_models
+
+# Только решить тест (RL где есть модель, иначе baseline)
+python run_rl.py solve --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv
+
+# Оценить submission против baseline
+python run_rl.py evaluate --test baseline/sample_submission.csv --submission submission.csv
+
+# Отправить на Kaggle
+python run_rl.py submit --file submission.csv
+```
+
+Через main.py: `python main.py solve --method rl --rl-models runs/rl_models --out submission.csv`
+
+## Авто-исследования с resume: run_research.py
+
+Скрипт для пакетного прогона доступных методов, сравнения с baseline, проверки корректности решений и сборки `merged_best` с сохранением состояния (`state.json`) и продолжением с места остановки.
+
+```bash
+# Быстрый профиль (несколько методов), можно безопасно прерывать и запускать снова
+python run_research.py --profile quick --out-dir runs/research
+
+# Полный профиль с более тяжёлыми конфигурациями
+python run_research.py --profile full --out-dir runs/research_full
+
+# Ограничить размер теста для чернового прогона
+python run_research.py --profile quick --limit 300
+```
+
+Артефакты:
+- `runs/research/state.json` — состояние шагов (resume).
+- `runs/research/submissions/*.csv` — сабмиты по методам.
+- `runs/research/metrics/*.json` — метрики compare vs baseline + check-steps.
+- `runs/research/summary.csv` и `runs/research/reports/latest_report.md` — сводка и мини-отчёт.
 
 ## Папка baseline/ — примеры сабмишенов
 
@@ -70,6 +124,24 @@ python main.py merge --base baseline/submission.csv --partials submission.csv --
    python main.py solve --method baseline --out submission.csv
    python main.py solve --method beam --out submission_beam.csv
    python main.py solve --method notebook --solver v3_1 --out submission_nb.csv
+   ```
+
+   **Скор как в оригиналах (в исходниках нет «блокнот+beam», каждый скор — одним методом):**
+   - **89980** — блокнот: только **v4**, treshold=2.6, без beam.
+   - **91584** — 91584: только **baseline + beam** (gap, 128×128), без блокнота.
+   Команды:
+   ```bash
+   python run_best_score.py --mode notebook --out submission.csv   # цель 89980 (только v4)
+   python run_best_score.py --mode beam --out submission.csv       # цель 91584 (только beam)
+   ```
+   Явно через main.py:
+   ```bash
+   python main.py solve --method notebook --solver v4 --treshold 2.6 --out submission.csv
+   python main.py solve --method beam --out submission.csv
+   ```
+   Режимы `--mode crossing-memory` и `--mode crossing-quality` — экспериментальные (блокнот+beam). Оценка после решения:
+   ```bash
+   python main.py evaluate --test baseline/sample_submission.csv --submission submission.csv
    ```
 
 3. **Автосабмит на Kaggle с твоего аккаунта:**

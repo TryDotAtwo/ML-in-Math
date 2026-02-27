@@ -49,12 +49,18 @@ from src.submission import (
     compare,
     merge_submissions_with_partials,
     process_row,
+    log_experiment,
+    log_evaluate,
 )
 from src.crossings import (
     solve_notebook_then_beam,
     solve_baseline_then_beam,
     solve_unified,
 )
+try:
+    from src.ml import solve_with_rl_or_baseline
+except ImportError:
+    solve_with_rl_or_baseline = None
 
 
 def _ensure_n(df: pd.DataFrame) -> pd.DataFrame:
@@ -115,14 +121,20 @@ def cmd_solve(args: argparse.Namespace) -> None:
                 w=args.w,
             )
         elif args.method == "notebook":
-            func, default_t = get_solver(args.solver)
-            t = getattr(args, "treshold", None) or default_t
-            result = func(perm, t)
-            moves = list(result[0][0]) if isinstance(result[0], tuple) else list(result[0])
+            baseline_after_id = getattr(args, "notebook_baseline_after_id", None)
+            if baseline_after_id is not None and args.solver == "v4" and rid >= baseline_after_id:
+                moves = pancake_sort_moves(perm)
+            else:
+                func, default_t = get_solver(args.solver)
+                t = getattr(args, "treshold", None) or default_t
+                result = func(perm, t)
+                moves = list(result[0][0]) if isinstance(result[0], tuple) else list(result[0])
         elif args.method == "crossing-notebook-beam":
             moves = solve_notebook_then_beam(
                 perm,
-                treshold=getattr(args, "treshold", 3),
+                notebook_solver=args.solver,
+                treshold=getattr(args, "treshold", None),
+                notebook_max_states=getattr(args, "notebook_max_states", None),
                 beam_width=args.beam_width,
                 depth=args.depth,
                 alpha=args.alpha,
@@ -132,23 +144,41 @@ def cmd_solve(args: argparse.Namespace) -> None:
             moves = solve_unified(
                 perm,
                 use_notebook_baseline=args.notebook_baseline,
-                treshold=getattr(args, "treshold", 3),
+                notebook_solver=args.solver,
+                treshold=getattr(args, "treshold", None),
+                notebook_max_states=getattr(args, "notebook_max_states", None),
                 beam_width=args.beam_width,
                 depth=args.depth,
                 alpha=args.alpha,
                 w=args.w,
             )
+        elif args.method == "rl":
+            if solve_with_rl_or_baseline is None:
+                raise SystemExit("RL method requires torch and src.ml. Install: pip install torch")
+            models_dir = getattr(args, "rl_models", None) or "runs/rl_models"
+            moves = solve_with_rl_or_baseline(perm, models_dir, device=getattr(args, "rl_device", None))
         else:
             raise SystemExit(f"Unknown method: {args.method}")
         rows.append({"id": rid, "solution": moves_to_str(moves)})
         if (len(rows)) % 100 == 0 and len(rows) > 0:
             print(f"  solved {len(rows)} ...", flush=True)
+            if args.method in ("crossing-notebook-beam", "unified", "beam"):
+                import gc
+                gc.collect()
 
     out_df = pd.DataFrame(rows)
     out_df.to_csv(args.out, index=False)
     total = out_df["solution"].fillna("").apply(lambda s: s.count(".") + 1 if isinstance(s, str) and s.strip() else 0).sum()
     print(f"Saved {len(out_df)} rows to {args.out} | total moves (score): {int(total)}")
-
+    log_experiment(
+        script="main",
+        command="solve",
+        method=args.method,
+        test_path=str(args.test),
+        out_path=str(args.out),
+        score=int(total),
+        n_rows=len(out_df),
+    )
     if getattr(args, "submit", False):
         comp = getattr(args, "competition", None) or os.environ.get("KAGGLE_COMPETITION") or _DEFAULT_KAGGLE_COMPETITION
         _do_kaggle_submit(args.out, comp, getattr(args, "message", "") or f"{args.method} {len(out_df)} rows")
@@ -169,6 +199,17 @@ def cmd_evaluate(args: argparse.Namespace) -> None:
     print("--- Evaluation vs baseline ---")
     for k, v in stats.items():
         print(f"  {k}: {v}")
+    log_evaluate(
+        script="main",
+        test_path=args.test,
+        submission_path=args.submission,
+        baseline_total=stats.get("baseline_total", 0),
+        submission_total=stats.get("submission_total", 0),
+        n_rows=len(sub_df),
+        total_gain=stats.get("total_gain"),
+        improved_cases=stats.get("improved_cases"),
+        worse_cases=stats.get("worse_cases"),
+    )
     if args.details:
         print(f"  details saved to {args.details}")
 
@@ -381,9 +422,9 @@ def main() -> None:
     p = sub.add_parser("solve", help="Решить тест и сохранить submission CSV (для Kaggle)")
     p.add_argument("--test", default=_DEFAULT_TEST_PATH, help="CSV с id, permutation (по умолчанию: baseline/sample_submission.csv)")
     p.add_argument("--out", default="submission.csv", help="Выходной CSV (id, solution) для загрузки на Kaggle")
-    p.add_argument("--method", choices=["baseline", "beam", "notebook", "crossing-notebook-beam", "unified"], default="baseline")
+    p.add_argument("--method", choices=["baseline", "beam", "notebook", "crossing-notebook-beam", "unified", "rl"], default="baseline")
     p.add_argument("--solver", default="v3_1", help="Солвер блокнота при method=notebook (v3_1, v3_5, v4)")
-    p.add_argument("--treshold", type=int, default=None, help="Порог для солверов блокнота")
+    p.add_argument("--treshold", type=float, default=None, help="Порог для солверов блокнота (v4 в блокноте: 2.6)")
     p.add_argument("--notebook-baseline", action="store_true", help="Для unified: использовать блокнот как baseline")
     p.add_argument("--beam-width", type=int, default=128)
     p.add_argument("--depth", type=int, default=128)
@@ -391,6 +432,9 @@ def main() -> None:
     p.add_argument("--w", type=float, default=0.5)
     p.add_argument("--limit", type=int, default=None, help="Макс. число строк (для теста)")
     p.add_argument("--max-n", type=int, default=None, help="Для perm с n>max_n использовать только baseline")
+    p.add_argument("--notebook-max-states", type=int, default=None, help="Лимит состояний в v3_1 (ограничение памяти)")
+    p.add_argument("--rl-models", default="runs/rl_models", help="Каталог с policy_n_{n}.pt при method=rl")
+    p.add_argument("--rl-device", default=None, help="cuda / cpu для RL при method=rl")
     p.add_argument("--submit", action="store_true", help="После решения отправить --out на Kaggle")
     p.add_argument("--competition", "-c", default=os.environ.get("KAGGLE_COMPETITION", _DEFAULT_KAGGLE_COMPETITION), help="Слаг соревнования (по умолчанию: CayleyPy-pancake)")
     p.add_argument("--message", "-m", default="", help="Сообщение к сабмиту (для --submit)")

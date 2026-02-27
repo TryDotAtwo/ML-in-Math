@@ -32,6 +32,15 @@
 
 - Для одного-двух солверов блокнота (например v3_1 с treshold=3): на маленькой perm возвращается кортеж (moves, ...); apply_moves(perm, moves) == list(range(n)).
 
+### test_ml.py (RL; требуется torch)
+
+- **PancakeEnv**: step(k) даёт правильный next_state, reward=-1, done при identity.
+- **PolicyNet**: forward (batch, n) → (batch, n-1) логиты.
+- **solve_with_rl_or_baseline**: при отсутствии модели для n возвращается решение baseline; корректность apply_moves(perm, moves) == identity.
+- **load_policy_for_n**: при отсутствии файла модели возвращается None.
+
+Запуск: `python -m pytest tests/unit/test_ml.py -v` (при установленном torch).
+
 ### test_check_steps, test_process_row (integration)
 
 - check_steps: DataFrame с id, permutation, solution — возвращает список id с неверным решением; для корректных решений — пустой список.
@@ -66,7 +75,7 @@
 - Integration: `python -m pytest tests/integration/ -v`
 - Все: `python -m pytest tests/ -v`
 
-Требования: `pip install -r requirements.txt` (numpy, pandas, pytest). Для ML-модуля дополнительно torch/cayleypy не требуются для базовых и интеграционных тестов.
+Требования: `pip install -r requirements.txt` (numpy, pandas, pytest, torch). Тесты `test_ml.py` требуют torch; при отсутствии torch они пропускаются (importorskip).
 
 ---
 

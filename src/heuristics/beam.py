@@ -24,9 +24,11 @@ def beam_improve_or_baseline_h(
     w: float = 1.0,
     log: bool = False,
     log_every_layer: int = 1,
+    prune_best_g_each_layer: bool = False,
 ) -> List[int]:
     """Улучшает базовое решение ограниченным beam search с оценкой f = g + w*h.
     Возвращает улучшенный список ходов или исходный baseline.
+    prune_best_g_each_layer=True ограничивает память (только состояния текущего луча).
     """
     start = list(perm)
 
@@ -88,6 +90,8 @@ def beam_improve_or_baseline_h(
             break
 
         beam = nsmallest(beam_width, candidates, key=lambda x: x[0])
+        if prune_best_g_each_layer:
+            best_g = {tuple(state): g for (_, g, state, _) in beam}
         if best_len <= 2:
             break
 
