@@ -201,7 +201,7 @@ def main() -> None:
         f"[beam_gap_4096] Сабмит на Kaggle: файл={out_path.name}, competition={competition!r}"
     )
     main_mod._do_kaggle_submit(
-        str(д),
+        str(out_path),
         competition,
         f"beam gap 4096 (limit={args.limit or 'all'})",
     )
