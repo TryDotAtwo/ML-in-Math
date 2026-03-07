@@ -3,20 +3,91 @@
   "methods": {
     "baseline": {
       "status": "done",
-      "started_at": "2026-02-27 13:51:30",
+      "started_at": "2026-03-01 05:14:17",
       "submission_path": "runs\\research\\submissions\\baseline.csv",
       "metrics_path": "runs\\research\\metrics\\baseline.json",
-      "finished_at": "2026-02-27 13:51:31",
+      "finished_at": "2026-03-01 05:14:18",
       "score": 158680,
       "gain_vs_baseline": 0,
-      "wrong_solutions": 0
+      "wrong_solutions": 0,
+      "max_rss_gb": 0.07996749877929688,
+      "high_memory_events": 0
     },
     "beam_64x64": {
-      "status": "running",
-      "started_at": "2026-02-27 13:51:31",
+      "status": "done",
+      "started_at": "2026-03-01 05:14:18",
       "submission_path": "runs\\research\\submissions\\beam_64x64.csv",
-      "metrics_path": "runs\\research\\metrics\\beam_64x64.json"
+      "metrics_path": "runs\\research\\metrics\\beam_64x64.json",
+      "finished_at": "2026-03-01 05:35:00",
+      "score": 121011,
+      "gain_vs_baseline": 37669,
+      "wrong_solutions": 0,
+      "max_rss_gb": 0.1007080078125,
+      "high_memory_events": 0
+    },
+    "beam_64x64_LD": {
+      "status": "done",
+      "started_at": "2026-03-01 05:35:00",
+      "submission_path": "runs\\research\\submissions\\beam_64x64_LD.csv",
+      "metrics_path": "runs\\research\\metrics\\beam_64x64_LD.json",
+      "finished_at": "2026-03-01 06:13:05",
+      "score": 120573,
+      "gain_vs_baseline": 38107,
+      "wrong_solutions": 0,
+      "max_rss_gb": 0.10110855102539062,
+      "high_memory_events": 0
+    },
+    "beam_64x64_singleton": {
+      "status": "done",
+      "started_at": "2026-03-01 06:13:05",
+      "submission_path": "runs\\research\\submissions\\beam_64x64_singleton.csv",
+      "metrics_path": "runs\\research\\metrics\\beam_64x64_singleton.json",
+      "finished_at": "2026-03-01 07:01:10",
+      "score": 120314,
+      "gain_vs_baseline": 38366,
+      "wrong_solutions": 0,
+      "max_rss_gb": 0.10161209106445312,
+      "high_memory_events": 0
+    },
+    "notebook_v3_1_t3": {
+      "status": "done",
+      "started_at": "2026-03-01 07:01:10",
+      "submission_path": "runs\\research\\submissions\\notebook_v3_1_t3.csv",
+      "metrics_path": "runs\\research\\metrics\\notebook_v3_1_t3.json",
+      "finished_at": "2026-03-01 08:02:57",
+      "score": 110884,
+      "gain_vs_baseline": 47796,
+      "wrong_solutions": 435,
+      "max_rss_gb": 0.7757453918457031,
+      "high_memory_events": 0
+    },
+    "notebook_v3_5_t3": {
+      "status": "running",
+      "started_at": "2026-03-01 12:26:27",
+      "submission_path": "runs\\research\\submissions\\notebook_v3_5_t3.csv",
+      "metrics_path": "runs\\research\\metrics\\notebook_v3_5_t3.json"
+    },
+    "unified_nb_v3_1_beam_32x48": {
+      "status": "done",
+      "started_at": "2026-03-01 01:18:51",
+      "submission_path": "runs\\research\\submissions\\unified_nb_v3_1_beam_32x48.csv",
+      "metrics_path": "runs\\research\\metrics\\unified_nb_v3_1_beam_32x48.json",
+      "finished_at": "2026-03-01 02:19:12",
+      "score": 110449,
+      "gain_vs_baseline": 48231,
+      "wrong_solutions": 401,
+      "max_rss_gb": 1.178131103515625,
+      "high_memory_events": 0
+    },
+    "merged_best": {
+      "status": "done",
+      "finished_at": "2026-03-01 02:19:12",
+      "submission_path": "runs\\research\\submissions\\merged_best.csv",
+      "metrics_path": "runs\\research\\metrics\\merged_best.json",
+      "score": 110366,
+      "gain_vs_baseline": 48314,
+      "wrong_solutions": 401
     }
   },
-  "updated_at": "2026-02-27 13:51:31"
+  "updated_at": "2026-03-01 12:26:27"
 }

@@ -30,7 +30,7 @@
    - Не трогай файлы в `baseline/`, кроме чтения — изменения делаем только в `src/` и `docs/`.
 
 4. **При запуске экспериментов:**
-   - Для solve/evaluate используй `main.py`, `run_best_score.py` или `run_rl.py` так, чтобы они писали логи в `runs/experiment_results.jsonl` (это уже встроено).
+   - Для solve/evaluate используй `main.py`, `run_best.py` или `run_experiment.py` (режимы `research`/`rl`), так, чтобы они писали логи в `runs/experiment_results.jsonl` (это уже встроено).
    - После каждого значимого прогона:
      - обнови `docs/04_RESULTS.md` (таблицы результатов);
      - обнови статус соответствующих гипотез в `docs/03_HYPOTHESES.md` (таблица в начале и блок конкретной гипотезы).
@@ -79,11 +79,15 @@ ML in Math/
 │   ├── unit/
 │   └── integration/
 ├── runs/                    # Результаты прогонов (experiment_results.jsonl, rl_models/, CSV)
+├── article/                 # Статья по теме проекта (LaTeX); правила написания — article/WRITING_RULES.md
+├── hypotheses/              # Гипотезы и идеи для проверки агентом; правила анализа — hypotheses/ANALYSIS_RULES.md
 ├── baseline/                # Оригинальные скрипты и статьи (только чтение)
-├── run_rl.py                # RL-пайплайн (train/solve/evaluate/submit/full)
-├── run_research.py          # Пакетный прогон всех методов с resume (state.json)
+├── scripts/                 # Пакет со скриптами
+│   ├── runners/             # CLI-раннеры: RL, research, best_score, submission_stats
+│   └── hypotheses/          # Скрипты под конкретные гипотезы (Hxx_*, не перезаписывать старые)
 ├── main.py                  # Главная точка входа (solve/evaluate/submit)
-└── run_best_score.py        # Воспроизведение оригинальных скоров (notebook/beam)
+├── run_experiment.py        # Единая точка входа для экспериментов (research/rl/stats)
+└── run_best.py              # Воспроизведение оригинальных скоров (notebook/beam)
 ```
 
 ## Где что искать
@@ -95,7 +99,7 @@ ML in Math/
 | Beam search с эвристикой (gap_h, breakpoints) | `src/heuristics/beam.py`, в 91584: `beam_improve_or_baseline_h` |
 | Эвристический поиск с порогом (v3_1, v3_5, v4) | `src/notebook_search/`, в блокноте: `pancake_sort_v3_1` и др. |
 | ML-модели (Pilgrim, EmbMLP) и beam+ML | `src/ml/`, в 91584: `beam_improve_with_ml`, `get_model` |
-| RL: политика π(a\|s), BC, инференс | `src/ml/` (env, policy, train, inference), `run_rl.py` (train/solve/evaluate/submit) |
+| RL: политика π(a\|s), BC, инференс | `src/ml/` (env, policy, train, inference), `scripts/runners/run_rl.py` (через `run_experiment.py rl ...`) |
 | Сравнение сабмитов, best_solution, merge | `src/submission/` (best, merge, evaluate, check_steps, process_row, compare) |
 | Солверы блокнота (v3_1, v3_5, v4), реестр | `src/notebook_search/solvers.py`, `SOLVER_REGISTRY`, `get_solver` |
 | Грид и полный прогон beam | `src/heuristics/experiments.py` (select_cases_per_n, run_grid, full_eval_top_cfgs) |
@@ -109,6 +113,8 @@ ML in Math/
 | Примеры сабмишенов (baseline) | папка `baseline/` (submission.csv, sample_submission.csv) |
 | Лог экспериментов (скоры, метод, gain) | `runs/experiment_results.jsonl` (пишется при solve/evaluate) |
 | Анализ результатов и выводы по гипотезам | `docs/08_ANALYSIS.md` → обновлять `04_RESULTS.md` и итоги в `03_HYPOTHESES.md` |
+| Статья по теме проекта (LaTeX) | `article/` — исходники и черновики; правила оформления в `article/WRITING_RULES.md` |
+| Идеи и гипотезы для проверки агентом | `hypotheses/` — формулировки и результаты проверки; правила анализа в `hypotheses/ANALYSIS_RULES.md` |
 
 ## Ключевые контракты
 
@@ -129,6 +135,6 @@ ML in Math/
 
 - Оригиналы `pancake_91584_final_edit.py` и `копия_блокнота__pancake_problem_.py` завязаны на Colab/Kaggle (пути, drive.mount). В `src/` пути и зависимости должны быть абстрагированы (конфиг, опциональный Google Drive).
 - В блокноте `revers_perm(perm)` возвращает кортеж `(reversed_perm, decode_dict)`; при использовании в `process_row` с `from_target=True` нужен только первый элемент — учитывать при скрещивании.
-- Солвер **v4** (и v3_5) перенесён в `src/notebook_search/solvers.py`. Скор 89980 воспроизводим через `run_best_score.py --mode notebook`.
-- **`run_research.py`** — пакетный оркестратор: `python run_research.py` запускает все доступные методы, сравнивает с baseline, собирает merged-best и сохраняет `state.json` для resume.
+- Солвер **v4** (и v3_5) перенесён в `src/notebook_search/solvers.py`. Скор 89980 воспроизводим через `python run_best.py --mode notebook`.
+- **Оркестратор исследований** — `scripts/runners/run_research.py`, удобный вход: `python run_experiment.py research --profile quick` (запускает все доступные методы, сравнивает с baseline, собирает merged-best и сохраняет `state.json` для resume).
 - В `h_functions.py` добавлены `count_singletons` (H_singletons, Rokicki) и `ld_h` (H_LD, Valenzano & Yang 2017).

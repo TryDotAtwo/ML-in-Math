@@ -12,8 +12,8 @@
 
 **Как воспроизвести в проекте:**
 
-- Скор ~89980: `python run_best_score.py --mode notebook` (или `python main.py solve --method notebook --solver v4 --treshold 2.6`).
-- Скор ~91584: `python run_best_score.py --mode beam` (или `python main.py solve --method beam`).
+- Скор ~89980: `python run_best.py --mode notebook` (или `python main.py solve --method notebook --solver v4 --treshold 2.6`).
+- Скор ~91584: `python run_best.py --mode beam` (или `python main.py solve --method beam`).
 - Режимы `crossing-*` (блокнот+beam) — экспериментальные, не повторяют ни один оригинал.
 
 ---
@@ -52,7 +52,7 @@
 
 ## RL (политика BC + опционально PG)
 
-Пайплайн: `run_rl.py` (train → solve → evaluate → submit). Модели сохраняются в `runs/rl_models/policy_n_{n}.pt`.
+Пайплайн: `run_experiment.py rl` (train → solve → evaluate → submit, реализация в `scripts/runners/run_rl.py`). Модели сохраняются в `runs/rl_models/policy_n_{n}.pt`.
 
 По `runs/experiment_results.jsonl` на тесте `baseline/sample_submission.csv` (2405 строк) получено два прогона BC-политики:
 
@@ -72,7 +72,7 @@
 **Команда полного цикла (обучение → решение → оценка → сабмит):**
 
 ```bash
-python run_rl.py full --train --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv --evaluate --submit
+python run_experiment.py rl full --train --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv --evaluate --submit
 ```
 
 Без `--train` используются уже сохранённые модели; без `--evaluate`/`--submit` выполняются только solve или solve+submit.

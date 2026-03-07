@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 
 # корень проекта
-ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
 
@@ -22,7 +22,9 @@ def solution_length(s: str) -> int:
 
 
 def main():
-    p = argparse.ArgumentParser(description="Сводка по submission: таблица по n (score, rows, solved, len_min/max/med/mean)")
+    p = argparse.ArgumentParser(
+        description="Сводка по submission: таблица по n (score, rows, solved, len_min/max/med/mean)"
+    )
     p.add_argument("--submission", "-s", default="submission.csv", help="CSV с колонками id, solution")
     p.add_argument(
         "--test",
@@ -51,7 +53,10 @@ def main():
     else:
         test_path = Path(args.test)
         if not test_path.exists():
-            print(f"Файл теста не найден: {test_path}. Добавьте --test или используйте submission с колонкой permutation.", file=sys.stderr)
+            print(
+                f"Файл теста не найден: {test_path}. Добавьте --test или используйте submission с колонкой permutation.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         test_df = pd.read_csv(test_path)[["id", "permutation"]]
         sub = sub.merge(test_df, on="id", how="left")
@@ -86,3 +91,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

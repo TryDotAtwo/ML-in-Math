@@ -4,13 +4,12 @@
 Скрипт RL: обучение политики (BC + опционально PG), решение теста, оценка и сабмит.
 Цель — минимальный суммарный скор (сумма длин решений).
 
-Использование:
-  python run_rl.py train --test baseline/sample_submission.csv --out-dir runs/rl_models
-  python run_rl.py solve --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv
-  python run_rl.py evaluate --test baseline/sample_submission.csv --submission submission.csv
-  python run_rl.py submit --file submission.csv
-  python run_rl.py analyze   # сводка по runs/experiment_results.jsonl
-  python run_rl.py full --train --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv --evaluate --submit
+Использование (через проектный корень или оболочку run_experiment.py):
+  python -m scripts.runners.run_rl train --test baseline/sample_submission.csv --out-dir runs/rl_models
+  python -m scripts.runners.run_rl solve --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv
+  python -m scripts.runners.run_rl evaluate --test baseline/sample_submission.csv --submission submission.csv
+  python -m scripts.runners.run_rl submit --file submission.csv
+  python -m scripts.runners.run_rl analyze
 """
 
 from __future__ import annotations
@@ -20,9 +19,10 @@ import os
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Корень проекта (ML in Math), а не scripts/runners
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
 
@@ -239,7 +239,11 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    sub = parser.add_subparsers(dest="command", required=False, help="команда (по умолчанию: полный цикл train→solve→evaluate→submit)")
+    sub = parser.add_subparsers(
+        dest="command",
+        required=False,
+        help="команда (по умолчанию: полный цикл train→solve→evaluate→submit)",
+    )
 
     # train
     p = sub.add_parser("train", help="Обучить политики (BC, опционально PG) для n из теста или n_list")
@@ -279,15 +283,26 @@ def main() -> None:
     # submit
     p = sub.add_parser("submit", help="Отправить файл на Kaggle")
     p.add_argument("--file", default="submission.csv")
-    p.add_argument("--competition", "-c", default=os.environ.get("KAGGLE_COMPETITION", _DEFAULT_KAGGLE_COMPETITION))
+    p.add_argument(
+        "--competition",
+        "-c",
+        default=os.environ.get("KAGGLE_COMPETITION", _DEFAULT_KAGGLE_COMPETITION),
+    )
     p.add_argument("--message", "-m", default="")
     p.set_defaults(run=cmd_submit)
 
     # full: optional train -> solve -> optional evaluate -> optional submit
-    p = sub.add_parser("full", help="train (если --train) -> solve -> evaluate/submit. Один запуск для минимального скора.")
+    p = sub.add_parser(
+        "full",
+        help="train (если --train) -> solve -> evaluate/submit. Один запуск для минимального скора.",
+    )
     p.add_argument("--train", action="store_true", help="Сначала обучить политики (BC+PG), затем solve")
     p.add_argument("--test", default=_DEFAULT_TEST_PATH)
-    p.add_argument("--models", default=_DEFAULT_MODELS_DIR, help="Каталог моделей (и для train, и для solve)")
+    p.add_argument(
+        "--models",
+        default=_DEFAULT_MODELS_DIR,
+        help="Каталог моделей (и для train, и для solve)",
+    )
     p.add_argument("--out", default="submission.csv")
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--device", default=None)
@@ -301,7 +316,11 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--evaluate", action="store_true", help="После solve вызвать evaluate")
     p.add_argument("--submit", action="store_true", help="После solve отправить на Kaggle")
-    p.add_argument("--competition", "-c", default=os.environ.get("KAGGLE_COMPETITION", _DEFAULT_KAGGLE_COMPETITION))
+    p.add_argument(
+        "--competition",
+        "-c",
+        default=os.environ.get("KAGGLE_COMPETITION", _DEFAULT_KAGGLE_COMPETITION),
+    )
     p.add_argument("--message", "-m", default="")
     p.set_defaults(run=cmd_full)
 
@@ -333,3 +352,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

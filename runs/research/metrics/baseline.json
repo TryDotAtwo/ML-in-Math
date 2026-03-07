@@ -8,11 +8,17 @@
   "avg_gain_when_improved": 0.0,
   "max_gain": 0,
   "max_gain_id": null,
-  "time_sec": 0.15333771705627441,
-  "sec_per_sample": 6.375788650988542e-05,
+  "time_sec": 0.16249918937683105,
+  "sec_per_sample": 6.756723051011687e-05,
   "mean_baseline_len": 65.97920997920998,
   "mean_submission_len": 65.97920997920998,
   "improved_frac": 0.0,
   "wrong_solutions": 0,
-  "score_from_submission": 158680
+  "score_from_submission": 158680,
+  "max_rss_bytes": 85864448,
+  "max_rss_gb": 0.07996749877929688,
+  "high_memory_events": 0,
+  "mean_row_time_sec": 7.143427081514545e-05,
+  "max_row_time_sec": 0.0012946128845214844,
+  "rows_processed": 2405
 }

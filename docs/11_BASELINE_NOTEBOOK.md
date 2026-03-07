@@ -75,7 +75,7 @@
   - Solvers `v3_1`, `v4` доступны через:
     - `main.py solve --method notebook --solver v3_1|v4 ...`;
     - `src/crossings.py` (`solve_notebook_then_beam`, `solve_unified`) как baseline для beam.
-  - `run_best_score.py`:
+  - `run_best.py` (обёртка над `scripts/runners/run_best_score.py`):
     - режим `--mode notebook` = только v4, `treshold=2.6`, без beam (повторяет исходный блокнот по скору 89980).
 
 ---

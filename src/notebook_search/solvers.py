@@ -114,6 +114,10 @@ def pancake_sort_v3_5(perm, treshold: int = 3):
                 permute_search[arr_] = (moves + (idx,), _stat)
 
     while target not in permute_search:
+        if not permute_search:
+            from ..core.baseline import pancake_sort_moves
+            baseline_moves = tuple(pancake_sort_moves(perm))
+            return ((baseline_moves, 0), {}, arr_max_len, total_iter)
         min_stat = min(i[1] for i in permute_search.values())
 
         for arr in list(permute_search):

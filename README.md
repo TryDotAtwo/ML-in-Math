@@ -11,6 +11,8 @@
 - **Результаты:** [docs/04_RESULTS.md](docs/04_RESULTS.md)
 - **Описание тестов:** [docs/05_TESTS.md](docs/05_TESTS.md)
 - **План рефакторинга:** [docs/06_REFACTORING_PLAN.md](docs/06_REFACTORING_PLAN.md)
+- **Статья (LaTeX):** папка [article/](article/) — правила написания в [article/WRITING_RULES.md](article/WRITING_RULES.md).
+- **Гипотезы/идеи для проверки:** папка [hypotheses/](hypotheses/) — правила анализа в [hypotheses/ANALYSIS_RULES.md](hypotheses/ANALYSIS_RULES.md).
 
 ## Установка и тесты
 
@@ -28,19 +30,21 @@ python -m pytest tests/ -v
 - `src/crossings.py` — скрещивания: блокнот+beam, baseline+beam, единый пайплайн.
 - `src/ml/` — RL: окружение, политика π(a|s), обучение (BC + опционально PG), инференс.
 - **`baseline/`** — примеры сабмишенов: `submission.csv`, `sample_submission.csv` (id, permutation, solution, ~2405 строк).
+- **`article/`** — материалы и черновики статьи по теме проекта (LaTeX); правила оформления в `article/WRITING_RULES.md`.
+- **`hypotheses/`** — гипотезы и идеи для проверки агентом по данным проекта; правила анализа в `hypotheses/ANALYSIS_RULES.md`.
 
 Оригинальные файлы: `pancake_91584_final_edit.py`, `копия_блокнота__pancake_problem_.py` (не удаляются, используются как референс).
 
-## RL (минимальный скор): run_rl.py
+## RL (минимальный скор): run_experiment.py rl
 
-Отдельный скрипт для обучения политики и сабмита с целью **минимального суммарного скора**.
+Отдельный пайплайн для обучения политики и сабмита с целью **минимального суммарного скора**. Реализация — `scripts/runners/run_rl.py`, удобный вход — через `run_experiment.py rl`.
 
 Зависимость: `pip install torch` (уже в requirements.txt).
 
 **Один запуск — полный цикл (обучение → решение → оценка → сабмит):**
 
 ```bash
-python run_rl.py full --train --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv --evaluate --submit
+python run_experiment.py rl full --train --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv --evaluate --submit
 ```
 
 Команда `full --train` сначала обучает политики (BC, опционально PG) по всем n из теста, затем решает тест, при `--evaluate` сравнивает с baseline, при `--submit` отправляет файл на Kaggle. Без `--train` используются уже сохранённые модели.
@@ -49,33 +53,33 @@ python run_rl.py full --train --test baseline/sample_submission.csv --models run
 
 ```bash
 # Только обучить политики (BC; опционально --pg-epochs для дообучения)
-python run_rl.py train --test baseline/sample_submission.csv --out-dir runs/rl_models
+python run_experiment.py rl train --test baseline/sample_submission.csv --out-dir runs/rl_models
 
 # Только решить тест (RL где есть модель, иначе baseline)
-python run_rl.py solve --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv
+python run_experiment.py rl solve --test baseline/sample_submission.csv --models runs/rl_models --out submission.csv
 
 # Оценить submission против baseline
-python run_rl.py evaluate --test baseline/sample_submission.csv --submission submission.csv
+python run_experiment.py rl evaluate --test baseline/sample_submission.csv --submission submission.csv
 
 # Отправить на Kaggle
-python run_rl.py submit --file submission.csv
+python run_experiment.py rl submit --file submission.csv
 ```
 
 Через main.py: `python main.py solve --method rl --rl-models runs/rl_models --out submission.csv`
 
-## Авто-исследования с resume: run_research.py
+## Авто-исследования с resume: run_experiment.py research
 
-Скрипт для пакетного прогона доступных методов, сравнения с baseline, проверки корректности решений и сборки `merged_best` с сохранением состояния (`state.json`) и продолжением с места остановки.
+Скрипт для пакетного прогона доступных методов, сравнения с baseline, проверки корректности решений и сборки `merged_best` с сохранением состояния (`state.json`) и продолжением с места остановки. Реализация — `scripts/runners/run_research.py`, удобный вход — через `run_experiment.py research`.
 
 ```bash
 # Быстрый профиль (несколько методов), можно безопасно прерывать и запускать снова
-python run_research.py --profile quick --out-dir runs/research
+python run_experiment.py research --profile quick --out-dir runs/research
 
 # Полный профиль с более тяжёлыми конфигурациями
-python run_research.py --profile full --out-dir runs/research_full
+python run_experiment.py research --profile full --out-dir runs/research_full
 
 # Ограничить размер теста для чернового прогона
-python run_research.py --profile quick --limit 300
+python run_experiment.py research --profile quick --limit 300
 ```
 
 Артефакты:
@@ -131,8 +135,8 @@ python main.py merge --base baseline/submission.csv --partials submission.csv --
    - **91584** — 91584: только **baseline + beam** (gap, 128×128), без блокнота.
    Команды:
    ```bash
-   python run_best_score.py --mode notebook --out submission.csv   # цель 89980 (только v4)
-   python run_best_score.py --mode beam --out submission.csv       # цель 91584 (только beam)
+   python run_best.py --mode notebook --out submission.csv   # цель 89980 (только v4)
+   python run_best.py --mode beam --out submission.csv       # цель 91584 (только beam)
    ```
    Явно через main.py:
    ```bash

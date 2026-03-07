@@ -3,10 +3,10 @@
 """
 Единый оркестратор исследований Pancake-проекта с поддержкой resume.
 
-Запуск:
-  python run_research.py
-  python run_research.py --profile quick --limit 300
-  python run_research.py --profile full --out-dir runs/research_full
+Запуск (из корня проекта или через run_experiment.py research):
+  python -m scripts.runners.run_research
+  python -m scripts.runners.run_research --profile quick --limit 300
+  python -m scripts.runners.run_research --profile full --out-dir runs/research_full
 
 Что делает:
   1) Строит submission для нескольких доступных методов (baseline, beam,
@@ -33,10 +33,11 @@ from typing import Callable, Dict, List, Optional
 import psutil
 import pandas as pd
 
-_ROOT = Path(__file__).resolve().parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-os.chdir(_ROOT)
+# Корень проекта (ML in Math), а не scripts/runners
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+os.chdir(PROJECT_ROOT)
 
 from src.core import (
     apply_moves,
@@ -116,13 +117,19 @@ def _method_list(profile: str, include_rl: bool, models_dir: Path) -> List[Metho
         MethodCfg("beam_64x64", "beam", {"beam_width": 64, "depth": 64}),
         MethodCfg("beam_64x64_LD", "beam_custom_h", {"beam_width": 64, "depth": 64, "h_factory": "ld"}),
         MethodCfg("beam_64x64_singleton", "beam_custom_h", {"beam_width": 64, "depth": 64, "h_factory": "singleton"}),
-        MethodCfg("notebook_v3_1_t3", "notebook", {"solver": "v3_1", "treshold": 3.0}),
+        MethodCfg("notebook_v3_1_t3", "notebook", {"solver": "v3_1", "treshold": 3.0, "max_states": 500_000}),
         MethodCfg("notebook_v3_5_t3", "notebook", {"solver": "v3_5", "treshold": 3.0}),
         MethodCfg(
             "unified_nb_v3_1_beam_32x48",
             "unified",
-            {"use_notebook_baseline": True, "notebook_solver": "v3_1", "treshold": 3.0,
-             "beam_width": 32, "depth": 48},
+            {
+                "use_notebook_baseline": True,
+                "notebook_solver": "v3_1",
+                "treshold": 3.0,
+                "notebook_max_states": 500_000,
+                "beam_width": 32,
+                "depth": 48,
+            },
         ),
     ]
     extra_full = [
@@ -135,6 +142,7 @@ def _method_list(profile: str, include_rl: bool, models_dir: Path) -> List[Metho
     if include_rl and models_dir.exists():
         try:
             from src.ml import solve_with_rl_or_baseline  # noqa: F401
+
             methods.append(MethodCfg("rl_or_baseline", "rl", {"models_dir": str(models_dir)}))
         except Exception:
             _log("RL-модуль недоступен (torch?), пропускаю rl_or_baseline.")
@@ -144,9 +152,13 @@ def _method_list(profile: str, include_rl: bool, models_dir: Path) -> List[Metho
 # ─────────────────── solve one perm ───────────────────
 
 
-def _solve_notebook(perm: List[int], solver_name: str, treshold: float) -> List[int]:
+def _solve_notebook(perm: List[int], solver_name: str, treshold: float, max_states: Optional[int] = None) -> List[int]:
     func, default_t = get_solver(solver_name)
-    result = func(perm, treshold if treshold is not None else default_t)
+    t = treshold if treshold is not None else default_t
+    if solver_name == "v3_1" and max_states is not None:
+        result = func(perm, t, max_states=max_states)
+    else:
+        result = func(perm, t)
     first = result[0]
     return list(first[0]) if isinstance(first, tuple) else list(first)
 
@@ -192,18 +204,26 @@ def _solve_one(perm: List[int], cfg: MethodCfg, overrides: Optional[dict] = None
         )
 
     if cfg.kind == "notebook":
+        max_states = p.get("max_states")
+        if max_states is not None:
+            max_states = int(max_states)
         return _solve_notebook(
             perm,
             solver_name=str(p.get("solver", "v3_1")),
             treshold=float(p.get("treshold", 3.0)),
+            max_states=max_states,
         )
 
     if cfg.kind == "unified":
+        nb_max = p.get("notebook_max_states")
+        if nb_max is not None:
+            nb_max = int(nb_max)
         return solve_unified(
             perm,
             use_notebook_baseline=bool(p.get("use_notebook_baseline", True)),
             notebook_solver=str(p.get("notebook_solver", "v3_1")),
             treshold=float(p.get("treshold", 3.0)),
+            notebook_max_states=nb_max,
             beam_width=int(p.get("beam_width", 32)),
             depth=int(p.get("depth", 48)),
             alpha=float(p.get("alpha", 0.0)),
@@ -212,6 +232,7 @@ def _solve_one(perm: List[int], cfg: MethodCfg, overrides: Optional[dict] = None
 
     if cfg.kind == "rl":
         from src.ml import solve_with_rl_or_baseline
+
         return solve_with_rl_or_baseline(perm, str(p.get("models_dir", "runs/rl_models")))
 
     raise ValueError(f"Unknown method kind: {cfg.kind}")
@@ -297,15 +318,18 @@ def _run_method(
 
         if len(batch) >= 100:
             pd.DataFrame(batch).to_csv(
-                submission_path, mode="a", header=not wrote_header, index=False,
+                submission_path,
+                mode="a",
+                header=not wrote_header,
+                index=False,
             )
             wrote_header = True
             batch.clear()
             gc.collect()
 
         now = time.time()
-        need_log_by_count = (i % max(1, log_every) == 0)
-        need_log_by_time = (now - last_log_ts >= PROGRESS_TIME_LIMIT_SEC)
+        need_log_by_count = i % max(1, log_every) == 0
+        need_log_by_time = now - last_log_ts >= PROGRESS_TIME_LIMIT_SEC
         if need_log_by_count or need_log_by_time:
             elapsed = now - t0
             speed = new_solved / max(elapsed, 0.001)
@@ -317,7 +341,10 @@ def _run_method(
 
     if batch:
         pd.DataFrame(batch).to_csv(
-            submission_path, mode="a", header=not wrote_header, index=False,
+            submission_path,
+            mode="a",
+            header=not wrote_header,
+            index=False,
         )
 
     final_df = pd.read_csv(submission_path)[["id", "solution"]].copy()
@@ -477,8 +504,10 @@ def main() -> None:
             continue
 
         state["methods"][cfg.name] = {
-            "status": "running", "started_at": _ts(),
-            "submission_path": str(sub_path), "metrics_path": str(met_path),
+            "status": "running",
+            "started_at": _ts(),
+            "submission_path": str(sub_path),
+            "metrics_path": str(met_path),
         }
         _save_state(state_path, state)
 
@@ -497,24 +526,30 @@ def main() -> None:
             max_rss_gb = float(stats.get("max_rss_gb", 0.0))
             high_mem_events = int(stats.get("high_memory_events", 0))
 
-            state["methods"][cfg.name].update({
-                "status": "done", "finished_at": _ts(),
-                "score": score,
-                "gain_vs_baseline": gain,
-                "wrong_solutions": wrong,
-                "max_rss_gb": max_rss_gb,
-                "high_memory_events": high_mem_events,
-            })
+            state["methods"][cfg.name].update(
+                {
+                    "status": "done",
+                    "finished_at": _ts(),
+                    "score": score,
+                    "gain_vs_baseline": gain,
+                    "wrong_solutions": wrong,
+                    "max_rss_gb": max_rss_gb,
+                    "high_memory_events": high_mem_events,
+                }
+            )
             _save_state(state_path, state)
             completed[cfg.name] = sub_path
 
             _log(f"  [{cfg.name}] ✓ score={score}  gain_vs_baseline={gain:+d}  wrong={wrong}")
 
         except Exception as exc:
-            state["methods"][cfg.name].update({
-                "status": "failed", "finished_at": _ts(),
-                "error": f"{type(exc).__name__}: {exc}",
-            })
+            state["methods"][cfg.name].update(
+                {
+                    "status": "failed",
+                    "finished_at": _ts(),
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
             _save_state(state_path, state)
             _log(f"  [{cfg.name}] ✗ ОШИБКА: {type(exc).__name__}: {exc}")
             traceback.print_exc()
@@ -529,10 +564,12 @@ def main() -> None:
         _build_merged_best(completed, merged_path)
         merged_stats = _evaluate_method(test_df, merged_path)
         (metrics_dir / "merged_best.json").write_text(
-            json.dumps(merged_stats, ensure_ascii=False, indent=2), encoding="utf-8",
+            json.dumps(merged_stats, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
         state["methods"]["merged_best"] = {
-            "status": "done", "finished_at": _ts(),
+            "status": "done",
+            "finished_at": _ts(),
             "submission_path": str(merged_path),
             "metrics_path": str(metrics_dir / "merged_best.json"),
             "score": int(merged_stats.get("score_from_submission", 0)),
@@ -547,27 +584,33 @@ def main() -> None:
     for name, rec in state.get("methods", {}).items():
         if rec.get("status") != "done":
             continue
-        summary_rows.append({
-            "method": name,
-            "score": rec.get("score"),
-            "gain_vs_baseline": rec.get("gain_vs_baseline"),
-            "wrong_solutions": rec.get("wrong_solutions"),
-        })
+        summary_rows.append(
+            {
+                "method": name,
+                "score": rec.get("score"),
+                "gain_vs_baseline": rec.get("gain_vs_baseline"),
+                "wrong_solutions": rec.get("wrong_solutions"),
+            }
+        )
     summary_df = pd.DataFrame(summary_rows)
     if not summary_df.empty:
         summary_df = summary_df.sort_values("score")
     summary_df.to_csv(out_dir / "summary.csv", index=False)
     (out_dir / "summary.json").write_text(
-        summary_df.to_json(orient="records", force_ascii=False, indent=2), encoding="utf-8",
+        summary_df.to_json(orient="records", force_ascii=False, indent=2),
+        encoding="utf-8",
     )
     _write_report(reports_dir / "latest_report.md", summary_df, args)
 
     _log("")
     _print_summary(summary_df)
     _log(f"Артефакты: {out_dir}/")
-    _log(f"Для resume: python run_research.py --profile {args.profile}" +
-         (f" --limit {args.limit}" if args.limit else ""))
+    _log(
+        "Для resume: python -m scripts.runners.run_research "
+        f"--profile {args.profile}" + (f" --limit {args.limit}" if args.limit else "")
+    )
 
 
 if __name__ == "__main__":
     main()
+

@@ -15,7 +15,7 @@
 | **89980** | Блокнот (`копия_блокнота__pancake_problem_.py`) | Только **pancake_sort_v4**, treshold=**2.6**, без beam. Сабмит: `process_row(perm, pancake_sort_v4, treshold=2.6)` по всем строкам, затем при необходимости merge с best_df. |
 | **91584** | pancake_91584 (`pancake_91584_final_edit.py`) | Только **baseline + beam search** с gap-эвристикой (alpha=0, w=0.5, beam 128×128). Блокнот не используется. Итоговый сабмит — merge baseline с submission_gap.csv (beam по всем 2405). |
 
-Поэтому в проекте для воспроизведения оригиналов используются два отдельных режима: **notebook** (только v4) и **beam** (только baseline+beam). Режимы crossing-notebook-beam — экспериментальные (скрещивание двух подходов). Дополнительно реализован **RL-пайплайн** (политика π(a|s), обучение BC+PG, инференс с fallback на baseline): скрипт `run_rl.py`, команда `full --train --evaluate --submit` для полного цикла; см. README и `docs/04_RESULTS.md` (секция RL).
+Поэтому в проекте для воспроизведения оригиналов используются два отдельных режима: **notebook** (только v4) и **beam** (только baseline+beam). Режимы crossing-notebook-beam — экспериментальные (скрещивание двух подходов). Дополнительно реализован **RL-пайплайн** (политика π(a|s), обучение BC+PG, инференс с fallback на baseline): реализация в `scripts/runners/run_rl.py`, удобный вход через `run_experiment.py rl full --train --evaluate --submit`; см. README и `docs/04_RESULTS.md` (секция RL).
 
 ## Источники кода
 
@@ -53,7 +53,7 @@
 - **Beam search** — поиск с ограничением по ширине луча и эвристикой f = g + w*h (g — длина пути, h — эвристика состояния).
 - **Notebook search** — семейство солверов из блокнота (v3_1, v3_5, v4 и т.д.) с порогом и приоритетами.
 - **ML-beam** — beam search, в котором эвристика дополнена или заменена выходом нейросети.
-- **RL (run_rl.py)** — политика π(a|s), обучение behavior cloning и опционально policy gradient; инференс — один rollout до решения (низкая память). Полный цикл: `run_rl.py full --train --evaluate --submit`.
+- **RL (run_experiment.py rl)** — политика π(a\|s), обучение behavior cloning и опционально policy gradient; инференс — один rollout до решения (низкая память). Полный цикл: `run_experiment.py rl full --train --evaluate --submit` (реализация в `scripts/runners/run_rl.py`).
 - **MCS (Monte Carlo Search)** — nested MCS с rollout-политиками; не реализован, является гипотезой H_MCS. Источник: Bouzy 2015.
 - **LD/LDD** — lock detection: lookahead-улучшения gap_h, вычислимые за O(N). Не реализованы, гипотезы H_LD, H_LDD. Источник: Valenzano & Yang 2017.
 - **Singletons** — блинчики с разрывами с обеих сторон; tie-breaking в beam по числу singletons. Гипотеза H_singletons. Источник: Rokicki.

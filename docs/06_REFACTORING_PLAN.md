@@ -44,7 +44,7 @@
 | 🟢 Низкий | Перенести ML-блок (Pilgrim, EmbMLP, get_model) | `src/ml/models.py` | torch, cayleypy; источник: 91584 |
 | 🟢 Низкий | Перенести beam_improve_with_ml | `src/ml/beam_ml.py` | models.py; источник: 91584 |
 
-**v3_5 и v4 перенесены.** Скор 89980 теперь воспроизводим: `python run_best_score.py --mode notebook` (v4, treshold=2.6).
+**v3_5 и v4 перенесены.** Скор 89980 теперь воспроизводим: `python run_best.py --mode notebook` (v4, treshold=2.6).
 
 ---
 

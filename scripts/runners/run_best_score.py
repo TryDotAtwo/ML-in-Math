@@ -5,10 +5,12 @@ import os
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-os.chdir(ROOT)
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Корень проекта (ML in Math)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+os.chdir(PROJECT_ROOT)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 def main():
     p = argparse.ArgumentParser(
@@ -118,5 +120,7 @@ def main():
     print(f"Режим: {mode_desc}\n")
     main_mod.cmd_solve(ns)
 
+
 if __name__ == "__main__":
     main()
+

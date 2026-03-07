@@ -93,7 +93,7 @@
 
 ### План (порядок работ без кода — только план)
 
-1. **Зафиксировать бейзлайны** — один прогон `run_best_score.py --mode notebook`, один `--mode beam`, сохранить submission в `runs/notebook.csv` и `runs/beam.csv`, посчитать score через `submission_stats.py` или `evaluate`. Убедиться, что воспроизводим 89980 и 91584.
+1. **Зафиксировать бейзлайны** — один прогон `run_best.py --mode notebook`, один `--mode beam`, сохранить submission в `runs/notebook.csv` и `runs/beam.csv`, посчитать score через `run_experiment.py stats` (обёртка над `scripts/runners/submission_stats.py`) или `evaluate`. Убедиться, что воспроизводим 89980 и 91584.
 2. **Merge нескольких сабмитов** — запустить 2–3 метода (notebook, beam, при возможности crossing на части id), объединить через best_solution (min score по каждому id). Замерить суммарный score. Это быстрый выигрыш без изменения алгоритмов.
 3. **Грид по параметрам beam** — на подмножестве теста (например `select_cases_per_n` по n_list с k=3–5) прогнать `run_grid` по alpha, w, beam_width, depth. Выбрать top_cfgs по mean gain, затем `full_eval_top_cfgs` на полном тесте. Сравнить с текущими 128×128, alpha=0, w=0.5.
 4. **Стратегия по n** — разбить id по n (малое / среднее / большое). Для малого n опционально notebook или notebook+beam; для большого — только beam (или baseline+beam) из-за памяти. Реализовать в main/run_best_score выбор метода по n (или по id-диапазону, если n коррелирует с id).

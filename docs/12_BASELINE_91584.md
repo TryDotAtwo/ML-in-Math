@@ -66,12 +66,12 @@
 
 - **Скрещивания и пайплайн**
   - baseline + beam (91584-пайплайн) → `src/crossings.py` (`solve_baseline_then_beam`).
-  - `main.py solve --method beam` и `run_best_score.py --mode beam`:
+  - `main.py solve --method beam` и `run_best.py --mode beam` (обёртка над `scripts/runners/run_best_score.py`):
     - используют baseline + beam (gap, 128×128);
     - воспроизводят скор 91584 без блокнота.
 
-- **RL (новое, поверх 91584)**  
-  - Отдельно в проект добавлен RL-пайплайн (`src/ml/`, `run_rl.py`), который использует другие идеи (BC/PG), но в 07\_AUDIT\_GAPS отмечен как часть «ML/91584» в более широком смысле.
+- **RL (новое, поверх 91584)**
+  - Отдельно в проект добавлен RL-пайплайн (`src/ml/`, `scripts/runners/run_rl.py`, вход через `run_experiment.py rl`), который использует другие идеи (BC/PG), но в 07\_AUDIT\_GAPS отмечен как часть «ML/91584» в более широком смысле.
 
 ---
 

@@ -50,7 +50,7 @@
 | merge_submissions_with_partials | Объединение base + partial по длине решения | **Есть** — `submission/merge.merge_submissions_with_partials` |
 | RunRow (dataclass) | Строка результата run_grid | Не перенесён (run_grid возвращает DataFrame) |
 | **ML-блок (91584)** | Модели Pilgrim/EmbMLP, beam_improve_with_ml, граф Кэли | **Нет** — опционально вынести в `src/ml/models.py`, `beam_ml.py` при необходимости |
-| **RL (политика)** | Окружение, π(a\|s), BC, PG, инференс | **Есть** — `src/ml/` (env, policy, train, inference), скрипт `run_rl.py` (train/solve/evaluate/submit, команда `full --train`) |
+| **RL (политика)** | Окружение, π(a\|s), BC, PG, инференс | **Есть** — `src/ml/` (env, policy, train, inference), скрипт `scripts/runners/run_rl.py` (вызывается через `run_experiment.py rl ...`, включая команду `full --train`) |
 
 ---
 
